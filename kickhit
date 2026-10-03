@@ -1,4 +1,3 @@
-```lua
 --// EMO TOOL CONTROLLER
 --// Roblox Studio LocalScript / Executor-compatible
 --//
@@ -605,7 +604,7 @@ local function startAutomation()
 		return
 	end
 
-	-- Make sure current textbox value is applied
+	-- Apply current textbox value
 	updateDelayFromText()
 
 	local tool = selectedTool
@@ -932,4 +931,3 @@ end)
 --==================================================
 
 refreshToolList()
-```
