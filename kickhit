@@ -14,7 +14,7 @@
 --       ↓
 -- Activate once
 --       ↓
--- R ACTION for 2 seconds
+-- Spam R for 2 seconds
 --       ↓
 -- Unequip
 --       ↓
@@ -22,20 +22,17 @@
 --       ↓
 -- Activate once
 --       ↓
--- R ACTION continuously
+-- Spam R continuously
 --
--- There is NO further equip/unequip after that.
+-- No further equip/unequip loop.
 --============================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-
---============================================================
--- SETTINGS
---============================================================
 
 local GUI_NAME = "BronzeAgeArmory"
 
@@ -46,7 +43,7 @@ local EQUIP_DELAY = 0.15
 local RESET_DELAY = 0.25
 
 --============================================================
--- REMOVE PREVIOUS GUI
+-- REMOVE OLD GUI
 --============================================================
 
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
@@ -64,22 +61,26 @@ local cycleRunning = false
 local minimized = false
 
 --============================================================
--- YOUR GAME'S R ACTION
---============================================================
--- IMPORTANT:
---
--- A LocalScript cannot manufacture a keyboard R press.
---
--- Put the action your OWN game performs when R is pressed here.
---
--- For example, if your game has its own R ability function,
--- call that function here.
---
+-- REAL R KEY PRESS
 --============================================================
 
-local function onRPressed()
+local function pressR()
 
-	-- YOUR OWN GAME'S R ACTION GOES HERE
+	VirtualInputManager:SendKeyEvent(
+		true,
+		Enum.KeyCode.R,
+		false,
+		game
+	)
+
+	task.wait(0.025)
+
+	VirtualInputManager:SendKeyEvent(
+		false,
+		Enum.KeyCode.R,
+		false,
+		game
+	)
 
 end
 
@@ -356,17 +357,21 @@ local function refreshTools()
 		corner.Parent = button
 
 		button.MouseEnter:Connect(function()
+
 			if selectedTool ~= tool then
 				button.BackgroundColor3 =
 					Color3.fromRGB(86, 59, 32)
 			end
+
 		end)
 
 		button.MouseLeave:Connect(function()
+
 			if selectedTool ~= tool then
 				button.BackgroundColor3 =
 					Color3.fromRGB(61, 43, 26)
 			end
+
 		end)
 
 		button.MouseButton1Click:Connect(function()
@@ -377,10 +382,12 @@ local function refreshTools()
 				"SELECTED: " .. tool.Name
 
 			for _, other in ipairs(toolList:GetChildren()) do
+
 				if other:IsA("TextButton") then
 					other.BackgroundColor3 =
 						Color3.fromRGB(61, 43, 26)
 				end
+
 			end
 
 			button.BackgroundColor3 =
@@ -388,7 +395,9 @@ local function refreshTools()
 
 			status.Text =
 				"STATUS: " .. tool.Name .. " SELECTED"
+
 		end)
+
 	end
 
 	task.wait()
@@ -400,10 +409,11 @@ local function refreshTools()
 			0,
 			listLayout.AbsoluteContentSize.Y + 12
 		)
+
 end
 
 --============================================================
--- WAIT FOR TOOL LOCATION
+-- WAIT FOR TOOL PARENT
 --============================================================
 
 local function waitForParent(tool, expectedParent, timeout)
@@ -419,6 +429,7 @@ local function waitForParent(tool, expectedParent, timeout)
 
 	return tool
 		and tool.Parent == expectedParent
+
 end
 
 --============================================================
@@ -456,6 +467,7 @@ local function equipTool(tool)
 	humanoid:EquipTool(tool)
 
 	return waitForParent(tool, character, 1)
+
 end
 
 --============================================================
@@ -495,9 +507,11 @@ local function unequipTool(tool)
 			backpack,
 			1
 		)
+
 	end
 
 	return false
+
 end
 
 --============================================================
@@ -517,7 +531,7 @@ local function activateTool(tool)
 end
 
 --============================================================
--- FIRST R PHASE
+-- R FOR 2 SECONDS
 --============================================================
 
 local function runFirstRPhase()
@@ -527,24 +541,28 @@ local function runFirstRPhase()
 	while cycleRunning
 		and os.clock() - startTime < R_FIRST_DURATION do
 
-		onRPressed()
+		pressR()
 
 		task.wait(R_INTERVAL)
+
 	end
+
 end
 
 --============================================================
--- CONTINUOUS R PHASE
+-- CONTINUOUS R
 --============================================================
 
 local function runContinuousRPhase()
 
 	while cycleRunning do
 
-		onRPressed()
+		pressR()
 
 		task.wait(R_INTERVAL)
+
 	end
+
 end
 
 --============================================================
@@ -563,15 +581,17 @@ local function runSequence()
 
 	cycleRunning = true
 
-	actionButton.Text = "■  STOP"
+	actionButton.Text =
+		"■  STOP"
 
 	task.spawn(function()
 
 		--====================================================
-		-- STEP 1: EQUIP
+		-- 1. EQUIP
 		--====================================================
 
-		status.Text = "STATUS: EQUIPPING"
+		status.Text =
+			"STATUS: EQUIPPING"
 
 		if not equipTool(selectedTool) then
 
@@ -579,6 +599,9 @@ local function runSequence()
 				"STATUS: EQUIP FAILED"
 
 			cycleRunning = false
+
+			actionButton.Text =
+				"⚔  KICK + HIT"
 
 			return
 		end
@@ -590,10 +613,11 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 2: LEFT CLICK ONCE
+		-- 2. FIRST HIT
 		--====================================================
 
-		status.Text = "STATUS: HIT"
+		status.Text =
+			"STATUS: HIT"
 
 		activateTool(selectedTool)
 
@@ -604,7 +628,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 3: R FOR 2 SECONDS
+		-- 3. R FOR 2 SECONDS
 		--====================================================
 
 		status.Text =
@@ -617,7 +641,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 4: UNEQUIP
+		-- 4. UNEQUIP
 		--====================================================
 
 		status.Text =
@@ -630,6 +654,9 @@ local function runSequence()
 
 			cycleRunning = false
 
+			actionButton.Text =
+				"⚔  KICK + HIT"
+
 			return
 		end
 
@@ -640,7 +667,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 5: RE-EQUIP
+		-- 5. RE-EQUIP
 		--====================================================
 
 		status.Text =
@@ -653,6 +680,9 @@ local function runSequence()
 
 			cycleRunning = false
 
+			actionButton.Text =
+				"⚔  KICK + HIT"
+
 			return
 		end
 
@@ -663,7 +693,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 6: LEFT CLICK ONCE AGAIN
+		-- 6. SECOND HIT
 		--====================================================
 
 		status.Text =
@@ -678,7 +708,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- STEP 7: CONTINUOUS R
+		-- 7. CONTINUOUS R
 		--====================================================
 
 		status.Text =
@@ -687,10 +717,8 @@ local function runSequence()
 		runContinuousRPhase()
 
 		--====================================================
-		-- FINISHED
+		-- STOPPED
 		--====================================================
-
-		cycleRunning = false
 
 		actionButton.Text =
 			"⚔  KICK + HIT"
@@ -699,6 +727,7 @@ local function runSequence()
 			"STATUS: READY"
 
 	end)
+
 end
 
 --============================================================
@@ -717,10 +746,11 @@ actionButton.MouseButton1Click:Connect(function()
 		status.Text =
 			"STATUS: STOPPED"
 
-		return
-	end
+	else
 
-	runSequence()
+		runSequence()
+
+	end
 
 end)
 
@@ -751,7 +781,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			runSequence()
 
 		end
+
 	end
+
 end)
 
 --============================================================
@@ -784,6 +816,7 @@ minimize.MouseButton1Click:Connect(function()
 				end
 
 			end
+
 		end
 
 	else
@@ -798,7 +831,9 @@ minimize.MouseButton1Click:Connect(function()
 			end
 
 		end
+
 	end
+
 end)
 
 --============================================================
@@ -826,8 +861,11 @@ topBar.InputBegan:Connect(function(input)
 				dragging = false
 
 			end
+
 		end)
+
 	end
+
 end)
 
 UserInputService.InputChanged:Connect(function(input)
@@ -851,6 +889,7 @@ UserInputService.InputChanged:Connect(function(input)
 			startPosition.Y.Scale,
 			startPosition.Y.Offset + delta.Y
 		)
+
 end)
 
 --============================================================
@@ -867,7 +906,9 @@ backpack.ChildAdded:Connect(function(child)
 		task.wait()
 
 		refreshTools()
+
 	end
+
 end)
 
 backpack.ChildRemoved:Connect(function(child)
@@ -877,7 +918,9 @@ backpack.ChildRemoved:Connect(function(child)
 		task.wait()
 
 		refreshTools()
+
 	end
+
 end)
 
 player.CharacterAdded:Connect(function()
@@ -885,6 +928,7 @@ player.CharacterAdded:Connect(function()
 	task.wait(1)
 
 	refreshTools()
+
 end)
 
 --============================================================
