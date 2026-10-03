@@ -13,7 +13,7 @@
 -- 5. STOP R COMPLETELY
 -- 6. Unequip
 -- 7. Re-equip
--- 8. Left click / activate once
+-- 8. Activate until CombatMode.Value == true
 -- 9. Spam R
 --
 -- AFTER NORMAL_CYCLES:
@@ -50,6 +50,13 @@ local EQUIP_DELAY = 0.15
 local UNEQUIP_DELAY = 0.25
 
 local COMBINED_INTERVAL = 0.08
+
+-- How often the tool is activated while waiting
+-- for CombatMode to become true.
+local COMBAT_ACTIVATE_INTERVAL = 0.08
+
+-- Safety timeout for the CombatMode activation phase.
+local COMBAT_MODE_TIMEOUT = 5
 
 --============================================================
 -- REMOVE OLD GUI
@@ -583,6 +590,86 @@ local function isEquipped(tool)
 end
 
 --============================================================
+-- COMBAT MODE CHECK
+--============================================================
+
+local function getCombatMode()
+
+	local charactersFolder =
+		workspace:FindFirstChild("Characters")
+
+	if not charactersFolder then
+		return nil
+	end
+
+	local characterFolder =
+		charactersFolder:FindFirstChild(player.Name)
+
+	if not characterFolder then
+		return nil
+	end
+
+	local pvp =
+		characterFolder:FindFirstChild("Pvp")
+
+	if not pvp then
+		return nil
+	end
+
+	local combatMode =
+		pvp:FindFirstChild("CombatMode")
+
+	if not combatMode then
+		return nil
+	end
+
+	if not combatMode:IsA("BoolValue") then
+		return nil
+	end
+
+	return combatMode
+
+end
+
+--============================================================
+-- ACTIVATE UNTIL COMBAT MODE
+--============================================================
+
+local function activateUntilCombatMode(tool)
+
+	local startTime = os.clock()
+
+	while cycleRunning do
+
+		-- Check CombatMode BEFORE activating.
+		local combatMode = getCombatMode()
+
+		if combatMode and combatMode.Value == true then
+			return true
+		end
+
+		-- Safety timeout.
+		if os.clock() - startTime >= COMBAT_MODE_TIMEOUT then
+			return false
+		end
+
+		-- Make sure the tool is still equipped.
+		if not isEquipped(tool) then
+			return false
+		end
+
+		-- Activate / left click.
+		leftClickTool(tool)
+
+		task.wait(COMBAT_ACTIVATE_INTERVAL)
+
+	end
+
+	return false
+
+end
+
+--============================================================
 -- R PHASE
 --============================================================
 
@@ -714,7 +801,7 @@ local function runSequence()
 		--====================================================
 
 		status.Text =
-			"STATUS: R SPAM  |  INITIAL"
+			"STATUS: R SPAM | INITIAL"
 
 		local completed =
 			firstRPhase(tool)
@@ -740,16 +827,6 @@ local function runSequence()
 		--====================================================
 		-- NORMAL CYCLES
 		--====================================================
-		--
-		-- Each cycle:
-		-- UNEQUIP
-		-- RE-EQUIP
-		-- LEFT CLICK
-		-- R SPAM
-		--
-		-- Number of cycles controlled by:
-		-- NORMAL_CYCLES
-		--====================================================
 
 		for cycle = 1, NORMAL_CYCLES do
 
@@ -762,7 +839,7 @@ local function runSequence()
 			--================================================
 
 			status.Text =
-				"STATUS: UNEQUIPPING  |  CYCLE "
+				"STATUS: UNEQUIPPING | CYCLE "
 				.. cycle
 				.. "/"
 				.. NORMAL_CYCLES
@@ -781,6 +858,8 @@ local function runSequence()
 
 			end
 
+			-- R is completely stopped here.
+
 			task.wait(UNEQUIP_DELAY)
 
 			if not cycleRunning then
@@ -792,7 +871,7 @@ local function runSequence()
 			--================================================
 
 			status.Text =
-				"STATUS: RE-EQUIPPING  |  CYCLE "
+				"STATUS: RE-EQUIPPING | CYCLE "
 				.. cycle
 				.. "/"
 				.. NORMAL_CYCLES
@@ -818,24 +897,19 @@ local function runSequence()
 			end
 
 			--================================================
-			-- LEFT CLICK
+			-- ACTIVATE UNTIL COMBAT MODE = TRUE
 			--================================================
 
 			status.Text =
-				"STATUS: LEFT CLICK  |  CYCLE "
+				"STATUS: ACTIVATING | CYCLE "
 				.. cycle
 				.. "/"
 				.. NORMAL_CYCLES
 
-			leftClickTool(tool)
+			local combatStarted =
+				activateUntilCombatMode(tool)
 
-			task.wait(0.10)
-
-			if not cycleRunning then
-				return
-			end
-
-			if not isEquipped(tool) then
+			if not combatStarted then
 
 				cycleRunning = false
 
@@ -843,22 +917,22 @@ local function runSequence()
 					"⚔  KICK + HIT"
 
 				status.Text =
-					"STATUS: TOOL UNEQUIPPED"
+					"STATUS: COMBAT MODE TIMEOUT"
 
 				return
 
 			end
 
+			if not cycleRunning then
+				return
+			end
+
 			--================================================
-			-- FINITE R SPAM
-			--================================================
-			--
-			-- This ends completely before the next
-			-- unequip/re-equip cycle begins.
+			-- R SPAM
 			--================================================
 
 			status.Text =
-				"STATUS: R SPAM  |  CYCLE "
+				"STATUS: R SPAM | CYCLE "
 				.. cycle
 				.. "/"
 				.. NORMAL_CYCLES
