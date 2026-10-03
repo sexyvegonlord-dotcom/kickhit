@@ -1,29 +1,7 @@
 --============================================================
 -- BRONZE AGE ARMORY
 -- Roblox Studio LocalScript
---
--- PLACE IN:
--- StarterPlayer
---   > StarterPlayerScripts
---
--- BEHAVIOR:
--- Select Tool
---      ↓
--- Equip
---      ↓
--- Activate / left-click once
---      ↓
--- Run R-action repeatedly for 2 seconds
---      ↓
--- Unequip
---      ↓
--- Equip again
---      ↓
--- Activate again
---      ↓
--- Repeat
---
--- Clicking STOP stops the cycle.
+-- Place in StarterPlayer > StarterPlayerScripts
 --============================================================
 
 local Players = game:GetService("Players")
@@ -41,11 +19,11 @@ local GUI_NAME = "BronzeAgeArmory"
 local R_DURATION = 2
 local R_INTERVAL = 0.08
 
-local EQUIP_DELAY = 0.12
-local RESET_DELAY = 0.15
+local EQUIP_DELAY = 0.15
+local RESET_DELAY = 0.25
 
 --============================================================
--- CLEAN UP OLD VERSION
+-- REMOVE OLD VERSION
 --============================================================
 
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
@@ -63,31 +41,13 @@ local cycleRunning = false
 local minimized = false
 
 --============================================================
--- R ACTION
+-- YOUR GAME'S R ACTION
 --============================================================
--- IMPORTANT:
---
--- A normal LocalScript cannot fake a keyboard R press.
---
--- Put the action that YOUR OWN GAME performs when R is
--- pressed inside this function.
---
--- Example:
---
--- local function onRPressed()
---     myOwnRFunction()
--- end
---
---============================================================
+-- Put whatever YOUR OWN GAME should do when R is pressed here.
 
 local function onRPressed()
 
-	--========================================================
-	-- PUT YOUR OWN GAME'S R ACTION HERE
-	--========================================================
-
-	-- Example:
-	-- game.ReplicatedStorage.Remotes.SomeRemote:FireServer()
+	-- YOUR R ACTION HERE
 
 end
 
@@ -102,7 +62,7 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
 --============================================================
--- MAIN WINDOW
+-- MAIN
 --============================================================
 
 local main = Instance.new("Frame")
@@ -144,10 +104,6 @@ topCover.BackgroundColor3 = topBar.BackgroundColor3
 topCover.BorderSizePixel = 0
 topCover.Parent = topBar
 
---============================================================
--- TITLE
---============================================================
-
 local title = Instance.new("TextLabel")
 title.Name = "Title"
 title.BackgroundTransparency = 1
@@ -172,7 +128,7 @@ subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.Parent = topBar
 
 --============================================================
--- MINIMIZE BUTTON
+-- MINIMIZE
 --============================================================
 
 local minimize = Instance.new("TextButton")
@@ -196,7 +152,6 @@ minimizeCorner.Parent = minimize
 --============================================================
 
 local divider = Instance.new("Frame")
-divider.Name = "Divider"
 divider.Size = UDim2.new(1, -30, 0, 1)
 divider.Position = UDim2.fromOffset(15, 58)
 divider.BackgroundColor3 = Color3.fromRGB(139, 96, 46)
@@ -208,7 +163,6 @@ divider.Parent = main
 --============================================================
 
 local inventoryLabel = Instance.new("TextLabel")
-inventoryLabel.Name = "InventoryLabel"
 inventoryLabel.BackgroundTransparency = 1
 inventoryLabel.Position = UDim2.fromOffset(16, 67)
 inventoryLabel.Size = UDim2.new(1, -32, 0, 22)
@@ -250,7 +204,7 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = toolList
 
 --============================================================
--- SELECTED TOOL LABEL
+-- SELECTED LABEL
 --============================================================
 
 local selectedLabel = Instance.new("TextLabel")
@@ -307,7 +261,7 @@ status.TextXAlignment = Enum.TextXAlignment.Center
 status.Parent = main
 
 --============================================================
--- GET INVENTORY TOOLS
+-- GET TOOLS
 --============================================================
 
 local function getTools()
@@ -348,7 +302,7 @@ local function getTools()
 end
 
 --============================================================
--- REFRESH INVENTORY
+-- REFRESH TOOL LIST
 --============================================================
 
 local function refreshTools()
@@ -441,7 +395,26 @@ local function refreshTools()
 end
 
 --============================================================
--- EQUIP
+-- WAIT FOR TOOL PARENT
+--============================================================
+
+local function waitForParent(tool, expectedParent, timeout)
+
+	local start = os.clock()
+
+	while tool
+		and tool.Parent ~= expectedParent
+		and os.clock() - start < timeout do
+
+		task.wait()
+	end
+
+	return tool
+		and tool.Parent == expectedParent
+end
+
+--============================================================
+-- EQUIP TOOL
 --============================================================
 
 local function equipTool(tool)
@@ -451,8 +424,9 @@ local function equipTool(tool)
 	end
 
 	local character = player.Character
+	local backpack = player:FindFirstChildOfClass("Backpack")
 
-	if not character then
+	if not character or not backpack then
 		return false
 	end
 
@@ -463,36 +437,66 @@ local function equipTool(tool)
 		return false
 	end
 
-	if tool.Parent == player.Backpack then
-		humanoid:EquipTool(tool)
+	-- Already equipped
+	if tool.Parent == character then
+		return true
 	end
 
-	return true
+	-- Tool MUST be in Backpack
+	if tool.Parent ~= backpack then
+		return false
+	end
+
+	humanoid:EquipTool(tool)
+
+	-- Wait until Roblox actually equips it
+	return waitForParent(tool, character, 1)
 end
 
 --============================================================
--- UNEQUIP
+-- UNEQUIP TOOL
 --============================================================
 
-local function unequipTool()
+local function unequipTool(tool)
+
+	if not tool then
+		return false
+	end
 
 	local character = player.Character
+	local backpack = player:FindFirstChildOfClass("Backpack")
 
-	if not character then
-		return
+	if not character or not backpack then
+		return false
 	end
 
 	local humanoid =
 		character:FindFirstChildOfClass("Humanoid")
 
-	if humanoid then
-		humanoid:UnequipTools()
+	if not humanoid then
+		return false
 	end
 
+	-- Already in Backpack
+	if tool.Parent == backpack then
+		return true
+	end
+
+	-- Make sure this is actually the equipped tool
+	if tool.Parent == character then
+
+		humanoid:UnequipTools()
+
+		-- WAIT until it really reaches Backpack
+		return waitForParent(tool, backpack, 1)
+
+	end
+
+	return false
 end
 
 --============================================================
--- LEFT CLICK / TOOL ACTIVATE
+-- ACTIVATE TOOL ONCE
 --============================================================
 
 local function activateTool(tool)
@@ -501,14 +505,16 @@ local function activateTool(tool)
 		return
 	end
 
-	if tool.Parent == player.Character then
+	local character = player.Character
+
+	if tool.Parent == character then
 		tool:Activate()
 	end
 
 end
 
 --============================================================
--- RUN R ACTION FOR 2 SECONDS
+-- R ACTION LOOP
 --============================================================
 
 local function runRSequence()
@@ -541,22 +547,18 @@ local function runCycle()
 			"STATUS: SELECT A TOOL FIRST"
 
 		return
-
 	end
 
 	cycleRunning = true
 
 	actionButton.Text = "■  STOP"
 
-	actionButton.BackgroundColor3 =
-		Color3.fromRGB(82, 48, 25)
-
 	task.spawn(function()
 
 		while cycleRunning do
 
 			--================================================
-			-- CHECK TOOL
+			-- MAKE SURE TOOL STILL EXISTS
 			--================================================
 
 			if not selectedTool
@@ -575,8 +577,19 @@ local function runCycle()
 			status.Text =
 				"STATUS: EQUIPPING"
 
-			equipTool(selectedTool)
+			local equipped =
+				equipTool(selectedTool)
 
+			if not equipped then
+
+				status.Text =
+					"STATUS: EQUIP FAILED"
+
+				break
+			end
+
+			-- IMPORTANT:
+			-- Give the character/tool state time to settle.
 			task.wait(EQUIP_DELAY)
 
 			if not cycleRunning then
@@ -584,7 +597,7 @@ local function runCycle()
 			end
 
 			--================================================
-			-- LEFT CLICK ONCE
+			-- CLICK ONCE
 			--================================================
 
 			status.Text =
@@ -599,7 +612,7 @@ local function runCycle()
 			end
 
 			--================================================
-			-- R ACTION FOR 2 SECONDS
+			-- R FOR 2 SECONDS
 			--================================================
 
 			status.Text =
@@ -616,10 +629,21 @@ local function runCycle()
 			--================================================
 
 			status.Text =
-				"STATUS: RESETTING"
+				"STATUS: UNEQUIPPING"
 
-			unequipTool()
+			local unequipped =
+				unequipTool(selectedTool)
 
+			if not unequipped then
+
+				status.Text =
+					"STATUS: UNEQUIP FAILED"
+
+				break
+			end
+
+			-- IMPORTANT:
+			-- Wait after confirmed unequip.
 			task.wait(RESET_DELAY)
 
 			if not cycleRunning then
@@ -627,10 +651,16 @@ local function runCycle()
 			end
 
 			--================================================
-			-- LOOP BACK TO EQUIP
+			-- LOOP STARTS AGAIN
 			--================================================
+			-- equipTool() now sees the Tool in Backpack
+			-- and moves it back into Character.
 
 		end
+
+		--====================================================
+		-- FINISH
+		--====================================================
 
 		cycleRunning = false
 
@@ -717,7 +747,7 @@ minimize.MouseButton1Click:Connect(function()
 end)
 
 --============================================================
--- DRAGGING
+-- DRAG WINDOW
 --============================================================
 
 local dragging = false
@@ -775,7 +805,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 --============================================================
--- INVENTORY AUTO REFRESH
+-- INVENTORY REFRESH
 --============================================================
 
 local backpack =
@@ -814,7 +844,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 --============================================================
--- INITIAL LOAD
+-- INITIALIZE
 --============================================================
 
 refreshTools()
