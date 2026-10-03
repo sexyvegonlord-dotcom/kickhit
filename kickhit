@@ -41,7 +41,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 local GUI_NAME = "BronzeAgeArmory"
 
 -- CHANGE THIS NUMBER
-local NORMAL_CYCLES = 5
+local NORMAL_CYCLES = 3
 
 local FIRST_R_DURATION = 2
 local R_INTERVAL = 0.08
