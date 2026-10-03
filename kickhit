@@ -1,130 +1,120 @@
---============================================================
--- BRONZE AGE ARMORY
--- Roblox Studio LocalScript
+--// Minimal Tool Click + R Spam GUI
+--// Roblox Studio - LocalScript
+--// Put in StarterPlayer > StarterPlayerScripts
 --
--- SEQUENCE:
---
--- 1. Select tool
--- 2. Equip selected tool
--- 3. Left click / activate once
--- 4. Spam R
---
--- NORMAL_CYCLES times:
--- 5. STOP R COMPLETELY
--- 6. Unequip
--- 7. Re-equip
--- 8. Activate until CombatMode.Value == true
--- 9. Spam R
---
--- AFTER NORMAL_CYCLES:
--- 10. STOP R COMPLETELY
--- 11. Unequip
--- 12. Re-equip
--- 13. Left click / activate once
--- 14. Spam R + activate tool repeatedly
---
--- 0 = START / STOP
--- GUI BUTTON = START / STOP
---============================================================
+--// 0 = Start / Stop
+--// Equip selected tool -> left click once
+--// Then left-click spam starts
+--// After the slider delay, R spam layers on top
+--// Unequipping the tool stops everything
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
---============================================================
+--==================================================
 -- SETTINGS
---============================================================
+--==================================================
 
-local GUI_NAME = "BronzeAgeArmory"
+local GUI_NAME = "MinimalToolController"
 
--- CHANGE THIS NUMBER
-local NORMAL_CYCLES = 3
-
-local FIRST_R_DURATION = 2
+local CLICK_INTERVAL = 0.08
 local R_INTERVAL = 0.08
 
-local EQUIP_DELAY = 0.15
-local UNEQUIP_DELAY = 0.25
+local MIN_R_DELAY = 0
+local MAX_R_DELAY = 5
+local DEFAULT_R_DELAY = 1
 
-local COMBINED_INTERVAL = 0.08
-
--- How often the tool is activated while waiting
--- for CombatMode to become true.
-local COMBAT_ACTIVATE_INTERVAL = 0.08
-
--- Safety timeout for the CombatMode activation phase.
-local COMBAT_MODE_TIMEOUT = 5
-
---============================================================
--- REMOVE OLD GUI
---============================================================
+--==================================================
+-- CLEAN OLD GUI
+--==================================================
 
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
-
 if oldGui then
 	oldGui:Destroy()
 end
 
---============================================================
+--==================================================
 -- STATE
---============================================================
+--==================================================
 
 local selectedTool = nil
-local cycleRunning = false
+local running = false
 local minimized = false
 
---============================================================
--- R KEY
---============================================================
+local rDelay = DEFAULT_R_DELAY
+
+local clickThread = nil
+local rThread = nil
+
+--==================================================
+-- HELPERS
+--==================================================
+
+local function getCharacter()
+	return player.Character
+end
+
+local function getHumanoid()
+	local character = getCharacter()
+	if not character then
+		return nil
+	end
+
+	return character:FindFirstChildOfClass("Humanoid")
+end
+
+local function isEquipped(tool)
+	local character = getCharacter()
+
+	return character
+		and tool
+		and tool.Parent == character
+end
+
+local function stopAutomation()
+	running = false
+
+	if clickThread then
+		task.cancel(clickThread)
+		clickThread = nil
+	end
+
+	if rThread then
+		task.cancel(rThread)
+		rThread = nil
+	end
+end
+
+local function leftClick(tool)
+	if not running then
+		return
+	end
+
+	if not isEquipped(tool) then
+		stopAutomation()
+		return
+	end
+
+	pcall(function()
+		tool:Activate()
+	end)
+end
 
 local function pressR()
-
-	VirtualInputManager:SendKeyEvent(
-		true,
-		Enum.KeyCode.R,
-		false,
-		game
-	)
-
-	task.wait(0.02)
-
-	VirtualInputManager:SendKeyEvent(
-		false,
-		Enum.KeyCode.R,
-		false,
-		game
-	)
-
+	pcall(function()
+		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+	end)
 end
 
---============================================================
--- ACTIVATE / LEFT CLICK
---============================================================
-
-local function leftClickTool(tool)
-
-	if not tool then
-		return
-	end
-
-	if not player.Character then
-		return
-	end
-
-	if tool.Parent ~= player.Character then
-		return
-	end
-
-	tool:Activate()
-
-end
-
---============================================================
+--==================================================
 -- GUI
---============================================================
+--==================================================
 
 local gui = Instance.new("ScreenGui")
 gui.Name = GUI_NAME
@@ -132,1148 +122,481 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
---============================================================
--- MAIN
---============================================================
-
 local main = Instance.new("Frame")
-main.Name = "Main"
-main.Size = UDim2.fromOffset(310, 365)
-main.Position = UDim2.new(0.5, -155, 0.5, -182)
-main.BackgroundColor3 = Color3.fromRGB(47, 31, 19)
+main.Size = UDim2.new(0, 270, 0, 205)
+main.Position = UDim2.new(0, 30, 0.5, -100)
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 main.BorderSizePixel = 0
 main.Parent = gui
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 10)
-mainCorner.Parent = main
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = main
 
-local mainStroke = Instance.new("UIStroke")
-mainStroke.Color = Color3.fromRGB(153, 108, 54)
-mainStroke.Thickness = 2
-mainStroke.Parent = main
-
---============================================================
+--==================================================
 -- TOP BAR
---============================================================
+--==================================================
 
 local topBar = Instance.new("Frame")
-topBar.Name = "TopBar"
-topBar.Size = UDim2.new(1, 0, 0, 48)
-topBar.BackgroundColor3 = Color3.fromRGB(88, 58, 29)
+topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 topBar.BorderSizePixel = 0
 topBar.Parent = main
 
 local topCorner = Instance.new("UICorner")
-topCorner.CornerRadius = UDim.new(0, 10)
+topCorner.CornerRadius = UDim.new(0, 8)
 topCorner.Parent = topBar
 
-local topCover = Instance.new("Frame")
-topCover.Size = UDim2.new(1, 0, 0, 12)
-topCover.Position = UDim2.new(0, 0, 1, -12)
-topCover.BackgroundColor3 = topBar.BackgroundColor3
-topCover.BorderSizePixel = 0
-topCover.Parent = topBar
-
 local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -70, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(15, 3)
-title.Size = UDim2.new(1, -65, 0, 25)
-title.Font = Enum.Font.Garamond
-title.Text = "⚔  BRONZE ARMORY"
-title.TextColor3 = Color3.fromRGB(235, 201, 132)
-title.TextSize = 19
+title.Text = "Tool Controller"
+title.TextColor3 = Color3.fromRGB(235, 235, 235)
+title.TextSize = 14
+title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
-local subtitle = Instance.new("TextLabel")
-subtitle.BackgroundTransparency = 1
-subtitle.Position = UDim2.fromOffset(16, 27)
-subtitle.Size = UDim2.new(1, -65, 0, 14)
-subtitle.Font = Enum.Font.Garamond
-subtitle.Text = "PERSONAL TEST CHAMBER"
-subtitle.TextColor3 = Color3.fromRGB(191, 153, 89)
-subtitle.TextSize = 9
-subtitle.TextXAlignment = Enum.TextXAlignment.Left
-subtitle.Parent = topBar
-
---============================================================
--- MINIMIZE
---============================================================
-
 local minimize = Instance.new("TextButton")
-minimize.Name = "Minimize"
-minimize.Size = UDim2.fromOffset(32, 30)
-minimize.Position = UDim2.new(1, -40, 0, 9)
-minimize.BackgroundColor3 = Color3.fromRGB(61, 40, 22)
-minimize.BorderSizePixel = 0
+minimize.Size = UDim2.new(0, 30, 0, 25)
+minimize.Position = UDim2.new(1, -35, 0, 3)
+minimize.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 minimize.Text = "—"
-minimize.Font = Enum.Font.Garamond
-minimize.TextSize = 20
-minimize.TextColor3 = Color3.fromRGB(239, 207, 142)
+minimize.TextColor3 = Color3.fromRGB(230, 230, 230)
+minimize.TextSize = 16
+minimize.Font = Enum.Font.GothamBold
+minimize.BorderSizePixel = 0
 minimize.Parent = topBar
 
-local minimizeCorner = Instance.new("UICorner")
-minimizeCorner.CornerRadius = UDim.new(0, 6)
-minimizeCorner.Parent = minimize
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 5)
+minCorner.Parent = minimize
 
---============================================================
--- DIVIDER
---============================================================
+--==================================================
+-- CONTENT
+--==================================================
 
-local divider = Instance.new("Frame")
-divider.Size = UDim2.new(1, -30, 0, 1)
-divider.Position = UDim2.fromOffset(15, 58)
-divider.BackgroundColor3 = Color3.fromRGB(139, 96, 46)
-divider.BorderSizePixel = 0
-divider.Parent = main
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, 0, 1, -32)
+content.Position = UDim2.new(0, 0, 0, 32)
+content.BackgroundTransparency = 1
+content.Parent = main
 
---============================================================
--- INVENTORY LABEL
---============================================================
+--==================================================
+-- TOOL SELECTOR
+--==================================================
 
-local inventoryLabel = Instance.new("TextLabel")
-inventoryLabel.BackgroundTransparency = 1
-inventoryLabel.Position = UDim2.fromOffset(16, 67)
-inventoryLabel.Size = UDim2.new(1, -32, 0, 22)
-inventoryLabel.Font = Enum.Font.Garamond
-inventoryLabel.Text = "INVENTORY / ARSENAL"
-inventoryLabel.TextColor3 = Color3.fromRGB(222, 183, 109)
-inventoryLabel.TextSize = 14
-inventoryLabel.TextXAlignment = Enum.TextXAlignment.Left
-inventoryLabel.Parent = main
+local toolLabel = Instance.new("TextLabel")
+toolLabel.Size = UDim2.new(1, -20, 0, 22)
+toolLabel.Position = UDim2.new(0, 10, 0, 8)
+toolLabel.BackgroundTransparency = 1
+toolLabel.Text = "Tool"
+toolLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+toolLabel.TextSize = 12
+toolLabel.Font = Enum.Font.Gotham
+toolLabel.TextXAlignment = Enum.TextXAlignment.Left
+toolLabel.Parent = content
 
---============================================================
+local toolButton = Instance.new("TextButton")
+toolButton.Size = UDim2.new(1, -20, 0, 32)
+toolButton.Position = UDim2.new(0, 10, 0, 30)
+toolButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+toolButton.Text = "Select Tool"
+toolButton.TextColor3 = Color3.fromRGB(235, 235, 235)
+toolButton.TextSize = 13
+toolButton.Font = Enum.Font.Gotham
+toolButton.BorderSizePixel = 0
+toolButton.Parent = content
+
+local toolCorner = Instance.new("UICorner")
+toolCorner.CornerRadius = UDim.new(0, 5)
+toolCorner.Parent = toolButton
+
+--==================================================
 -- TOOL LIST
---============================================================
+--==================================================
 
 local toolList = Instance.new("ScrollingFrame")
-toolList.Name = "ToolList"
-toolList.Position = UDim2.fromOffset(15, 94)
-toolList.Size = UDim2.new(1, -30, 0, 145)
-toolList.BackgroundColor3 = Color3.fromRGB(29, 21, 14)
+toolList.Size = UDim2.new(1, -20, 0, 80)
+toolList.Position = UDim2.new(0, 10, 0, 65)
+toolList.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 toolList.BorderSizePixel = 0
 toolList.ScrollBarThickness = 4
-toolList.ScrollBarImageColor3 = Color3.fromRGB(145, 99, 45)
+toolList.Visible = false
 toolList.CanvasSize = UDim2.new(0, 0, 0, 0)
-toolList.Parent = main
-
-local listCorner = Instance.new("UICorner")
-listCorner.CornerRadius = UDim.new(0, 7)
-listCorner.Parent = toolList
-
-local listPadding = Instance.new("UIPadding")
-listPadding.PaddingTop = UDim.new(0, 6)
-listPadding.PaddingLeft = UDim.new(0, 6)
-listPadding.PaddingRight = UDim.new(0, 6)
-listPadding.Parent = toolList
+toolList.Parent = content
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 5)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 3)
 listLayout.Parent = toolList
 
---============================================================
--- SELECTED
---============================================================
-
-local selectedLabel = Instance.new("TextLabel")
-selectedLabel.BackgroundTransparency = 1
-selectedLabel.Position = UDim2.fromOffset(16, 247)
-selectedLabel.Size = UDim2.new(1, -32, 0, 22)
-selectedLabel.Font = Enum.Font.Garamond
-selectedLabel.Text = "SELECTED: NONE"
-selectedLabel.TextColor3 = Color3.fromRGB(197, 164, 99)
-selectedLabel.TextSize = 13
-selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
-selectedLabel.Parent = main
-
---============================================================
--- ACTION BUTTON
---============================================================
-
-local actionButton = Instance.new("TextButton")
-actionButton.Name = "KickHit"
-actionButton.Position = UDim2.fromOffset(15, 278)
-actionButton.Size = UDim2.new(1, -30, 0, 50)
-actionButton.BackgroundColor3 = Color3.fromRGB(110, 69, 30)
-actionButton.BorderSizePixel = 0
-actionButton.Font = Enum.Font.Garamond
-actionButton.Text = "⚔  KICK + HIT"
-actionButton.TextColor3 = Color3.fromRGB(246, 217, 151)
-actionButton.TextSize = 20
-actionButton.Parent = main
-
-local actionCorner = Instance.new("UICorner")
-actionCorner.CornerRadius = UDim.new(0, 8)
-actionCorner.Parent = actionButton
-
-local actionStroke = Instance.new("UIStroke")
-actionStroke.Color = Color3.fromRGB(177, 126, 58)
-actionStroke.Thickness = 1
-actionStroke.Parent = actionButton
-
---============================================================
--- STATUS
---============================================================
-
-local status = Instance.new("TextLabel")
-status.BackgroundTransparency = 1
-status.Position = UDim2.fromOffset(16, 336)
-status.Size = UDim2.new(1, -32, 0, 18)
-status.Font = Enum.Font.Garamond
-status.Text = "STATUS: READY"
-status.TextColor3 = Color3.fromRGB(161, 130, 79)
-status.TextSize = 10
-status.TextXAlignment = Enum.TextXAlignment.Center
-status.Parent = main
-
---============================================================
--- GET TOOLS
---============================================================
-
-local function getTools()
-
-	local tools = {}
-
-	local backpack =
-		player:FindFirstChildOfClass("Backpack")
-
-	if backpack then
-
-		for _, item in ipairs(backpack:GetChildren()) do
-
-			if item:IsA("Tool") then
-				table.insert(tools, item)
-			end
-
-		end
-
-	end
-
-	if player.Character then
-
-		for _, item in ipairs(player.Character:GetChildren()) do
-
-			if item:IsA("Tool") then
-				table.insert(tools, item)
-			end
-
-		end
-
-	end
-
-	table.sort(tools, function(a, b)
-		return a.Name:lower() < b.Name:lower()
-	end)
-
-	return tools
-
-end
-
---============================================================
--- REFRESH TOOL LIST
---============================================================
-
-local function refreshTools()
-
+local function refreshToolList()
 	for _, child in ipairs(toolList:GetChildren()) do
-
 		if child:IsA("TextButton") then
 			child:Destroy()
 		end
-
 	end
 
-	local tools = getTools()
+	local tools = {}
+
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if backpack then
+		for _, obj in ipairs(backpack:GetChildren()) do
+			if obj:IsA("Tool") then
+				table.insert(tools, obj)
+			end
+		end
+	end
+
+	local character = getCharacter()
+	if character then
+		for _, obj in ipairs(character:GetChildren()) do
+			if obj:IsA("Tool") and not table.find(tools, obj) then
+				table.insert(tools, obj)
+			end
+		end
+	end
 
 	for _, tool in ipairs(tools) do
-
 		local button = Instance.new("TextButton")
-
-		button.Name = "ToolButton"
-		button.Size = UDim2.new(1, -4, 0, 31)
-		button.BackgroundColor3 = Color3.fromRGB(61, 43, 26)
+		button.Size = UDim2.new(1, -6, 0, 25)
+		button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		button.Text = tool.Name
+		button.TextColor3 = Color3.fromRGB(230, 230, 230)
+		button.TextSize = 11
+		button.Font = Enum.Font.Gotham
 		button.BorderSizePixel = 0
-		button.Font = Enum.Font.Garamond
-		button.Text = "  ⚒  " .. tool.Name
-		button.TextColor3 = Color3.fromRGB(211, 178, 111)
-		button.TextSize = 14
-		button.TextXAlignment = Enum.TextXAlignment.Left
 		button.Parent = toolList
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 5)
-		corner.Parent = button
-
-		button.MouseEnter:Connect(function()
-
-			if selectedTool ~= tool then
-
-				button.BackgroundColor3 =
-					Color3.fromRGB(86, 59, 32)
-
-			end
-
-		end)
-
-		button.MouseLeave:Connect(function()
-
-			if selectedTool ~= tool then
-
-				button.BackgroundColor3 =
-					Color3.fromRGB(61, 43, 26)
-
-			end
-
-		end)
+		local buttonCorner = Instance.new("UICorner")
+		buttonCorner.CornerRadius = UDim.new(0, 4)
+		buttonCorner.Parent = button
 
 		button.MouseButton1Click:Connect(function()
-
 			selectedTool = tool
-
-			selectedLabel.Text =
-				"SELECTED: " .. tool.Name
-
-			for _, other in ipairs(toolList:GetChildren()) do
-
-				if other:IsA("TextButton") then
-
-					other.BackgroundColor3 =
-						Color3.fromRGB(61, 43, 26)
-
-				end
-
-			end
-
-			button.BackgroundColor3 =
-				Color3.fromRGB(116, 77, 34)
-
-			status.Text =
-				"STATUS: " .. tool.Name .. " SELECTED"
-
+			toolButton.Text = "Selected: " .. tool.Name
+			toolList.Visible = false
 		end)
-
 	end
 
-	task.wait()
-
-	toolList.CanvasSize =
-		UDim2.new(
-			0,
-			0,
-			0,
-			listLayout.AbsoluteContentSize.Y + 12
-		)
-
+	toolList.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 5)
 end
 
---============================================================
--- WAIT FOR PARENT
---============================================================
+toolButton.MouseButton1Click:Connect(function()
+	refreshToolList()
+	toolList.Visible = not toolList.Visible
+end)
 
-local function waitForParent(tool, expectedParent, timeout)
+--==================================================
+-- R DELAY SLIDER
+--==================================================
 
-	local start = os.clock()
+local sliderLabel = Instance.new("TextLabel")
+sliderLabel.Size = UDim2.new(1, -20, 0, 20)
+sliderLabel.Position = UDim2.new(0, 10, 0, 102)
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+sliderLabel.TextSize = 11
+sliderLabel.Font = Enum.Font.Gotham
+sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+sliderLabel.Text = "R delay: " .. string.format("%.2f", rDelay) .. "s"
+sliderLabel.Parent = content
 
-	while tool
-		and tool.Parent ~= expectedParent
-		and os.clock() - start < timeout do
+local sliderBack = Instance.new("Frame")
+sliderBack.Size = UDim2.new(1, -35, 0, 6)
+sliderBack.Position = UDim2.new(0, 15, 0, 128)
+sliderBack.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+sliderBack.BorderSizePixel = 0
+sliderBack.Parent = content
 
-		task.wait()
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(1, 0)
+sliderCorner.Parent = sliderBack
 
-	end
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(
+	(rDelay - MIN_R_DELAY) / (MAX_R_DELAY - MIN_R_DELAY),
+	0,
+	1,
+	0
+)
+sliderFill.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBack
 
-	return tool
-		and tool.Parent == expectedParent
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(1, 0)
+fillCorner.Parent = sliderFill
 
-end
+local knob = Instance.new("Frame")
+knob.Size = UDim2.new(0, 12, 0, 12)
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new(
+	(rDelay - MIN_R_DELAY) / (MAX_R_DELAY - MIN_R_DELAY),
+	0,
+	0.5,
+	0
+)
+knob.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
+knob.BorderSizePixel = 0
+knob.Parent = sliderBack
 
---============================================================
--- EQUIP
---============================================================
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1, 0)
+knobCorner.Parent = knob
 
-local function equipTool(tool)
+local draggingSlider = false
 
-	if not tool then
-		return false
-	end
-
-	local character = player.Character
-	local backpack =
-		player:FindFirstChildOfClass("Backpack")
-
-	if not character or not backpack then
-		return false
-	end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-
-	if not humanoid then
-		return false
-	end
-
-	if tool.Parent == character then
-		return true
-	end
-
-	if tool.Parent ~= backpack then
-		return false
-	end
-
-	humanoid:EquipTool(tool)
-
-	return waitForParent(
-		tool,
-		character,
+local function updateSlider(mouseX)
+	local relative = math.clamp(
+		(mouseX - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X,
+		0,
 		1
 	)
 
+	rDelay = MIN_R_DELAY + (MAX_R_DELAY - MIN_R_DELAY) * relative
+
+	sliderFill.Size = UDim2.new(relative, 0, 1, 0)
+	knob.Position = UDim2.new(relative, 0, 0.5, 0)
+
+	sliderLabel.Text = "R delay: " .. string.format("%.2f", rDelay) .. "s"
 end
 
---============================================================
--- UNEQUIP
---============================================================
-
-local function unequipTool(tool)
-
-	if not tool then
-		return false
+sliderBack.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = true
+		updateSlider(input.Position.X)
 	end
-
-	local character = player.Character
-	local backpack =
-		player:FindFirstChildOfClass("Backpack")
-
-	if not character or not backpack then
-		return false
-	end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-
-	if not humanoid then
-		return false
-	end
-
-	if tool.Parent == backpack then
-		return true
-	end
-
-	if tool.Parent == character then
-
-		humanoid:UnequipTools()
-
-		return waitForParent(
-			tool,
-			backpack,
-			1
-		)
-
-	end
-
-	return false
-
-end
-
---============================================================
--- EQUIPPED CHECK
---============================================================
-
-local function isEquipped(tool)
-
-	return tool
-		and player.Character
-		and tool.Parent == player.Character
-
-end
-
---============================================================
--- COMBAT MODE CHECK
---============================================================
-
-local function getCombatMode()
-
-	local charactersFolder =
-		workspace:FindFirstChild("Characters")
-
-	if not charactersFolder then
-		return nil
-	end
-
-	local characterFolder =
-		charactersFolder:FindFirstChild(player.Name)
-
-	if not characterFolder then
-		return nil
-	end
-
-	local pvp =
-		characterFolder:FindFirstChild("Pvp")
-
-	if not pvp then
-		return nil
-	end
-
-	local combatMode =
-		pvp:FindFirstChild("CombatMode")
-
-	if not combatMode then
-		return nil
-	end
-
-	if not combatMode:IsA("BoolValue") then
-		return nil
-	end
-
-	return combatMode
-
-end
-
---============================================================
--- ACTIVATE UNTIL COMBAT MODE
---============================================================
-
-local function activateUntilCombatMode(tool)
-
-	local startTime = os.clock()
-
-	while cycleRunning do
-
-		-- Check CombatMode BEFORE activating.
-		local combatMode = getCombatMode()
-
-		if combatMode and combatMode.Value == true then
-			return true
-		end
-
-		-- Safety timeout.
-		if os.clock() - startTime >= COMBAT_MODE_TIMEOUT then
-			return false
-		end
-
-		-- Make sure the tool is still equipped.
-		if not isEquipped(tool) then
-			return false
-		end
-
-		-- Activate / left click.
-		leftClickTool(tool)
-
-		task.wait(COMBAT_ACTIVATE_INTERVAL)
-
-	end
-
-	return false
-
-end
-
---============================================================
--- R PHASE
---============================================================
-
-local function firstRPhase(tool)
-
-	local startTime = os.clock()
-
-	while cycleRunning
-		and os.clock() - startTime < FIRST_R_DURATION do
-
-		if not isEquipped(tool) then
-			return false
-		end
-
-		pressR()
-
-		if not cycleRunning then
-			return false
-		end
-
-		task.wait(R_INTERVAL)
-
-	end
-
-	return true
-
-end
-
---============================================================
--- FINAL R + LEFT CLICK PHASE
---============================================================
-
-local function combinedPhase(tool)
-
-	while cycleRunning do
-
-		if not isEquipped(tool) then
-			return
-		end
-
-		-- R
-		pressR()
-
-		if not cycleRunning then
-			return
-		end
-
-		-- LEFT CLICK / TOOL ACTIVATE
-		if isEquipped(tool) then
-			leftClickTool(tool)
-		else
-			return
-		end
-
-		task.wait(COMBINED_INTERVAL)
-
-	end
-
-end
-
---============================================================
--- MAIN SEQUENCE
---============================================================
-
-local function runSequence()
-
-	if not selectedTool then
-
-		status.Text =
-			"STATUS: SELECT A TOOL FIRST"
-
-		return
-
-	end
-
-	cycleRunning = true
-
-	actionButton.Text =
-		"■  STOP"
-
-	task.spawn(function()
-
-		local tool = selectedTool
-
-		--====================================================
-		-- INITIAL EQUIP
-		--====================================================
-
-		status.Text =
-			"STATUS: EQUIPPING"
-
-		if not equipTool(tool) then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: EQUIP FAILED"
-
-			return
-
-		end
-
-		task.wait(EQUIP_DELAY)
-
-		if not cycleRunning then
-			return
-		end
-
-		--====================================================
-		-- INITIAL LEFT CLICK
-		--====================================================
-
-		status.Text =
-			"STATUS: FIRST LEFT CLICK"
-
-		leftClickTool(tool)
-
-		task.wait(0.05)
-
-		if not cycleRunning then
-			return
-		end
-
-		--====================================================
-		-- INITIAL R SPAM
-		--====================================================
-
-		status.Text =
-			"STATUS: R SPAM | INITIAL"
-
-		local completed =
-			firstRPhase(tool)
-
-		if not completed then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: STOPPED"
-
-			return
-
-		end
-
-		if not cycleRunning then
-			return
-		end
-
-		--====================================================
-		-- NORMAL CYCLES
-		--====================================================
-
-		for cycle = 1, NORMAL_CYCLES do
-
-			if not cycleRunning then
-				return
-			end
-
-			--================================================
-			-- UNEQUIP
-			--================================================
-
-			status.Text =
-				"STATUS: UNEQUIPPING | CYCLE "
-				.. cycle
-				.. "/"
-				.. NORMAL_CYCLES
-
-			if not unequipTool(tool) then
-
-				cycleRunning = false
-
-				actionButton.Text =
-					"⚔  KICK + HIT"
-
-				status.Text =
-					"STATUS: UNEQUIP FAILED"
-
-				return
-
-			end
-
-			-- R is completely stopped here.
-
-			task.wait(UNEQUIP_DELAY)
-
-			if not cycleRunning then
-				return
-			end
-
-			--================================================
-			-- RE-EQUIP
-			--================================================
-
-			status.Text =
-				"STATUS: RE-EQUIPPING | CYCLE "
-				.. cycle
-				.. "/"
-				.. NORMAL_CYCLES
-
-			if not equipTool(tool) then
-
-				cycleRunning = false
-
-				actionButton.Text =
-					"⚔  KICK + HIT"
-
-				status.Text =
-					"STATUS: RE-EQUIP FAILED"
-
-				return
-
-			end
-
-			task.wait(EQUIP_DELAY)
-
-			if not cycleRunning then
-				return
-			end
-
-			--================================================
-			-- ACTIVATE UNTIL COMBAT MODE = TRUE
-			--================================================
-
-			status.Text =
-				"STATUS: ACTIVATING | CYCLE "
-				.. cycle
-				.. "/"
-				.. NORMAL_CYCLES
-
-			local combatStarted =
-				activateUntilCombatMode(tool)
-
-			if not combatStarted then
-
-				cycleRunning = false
-
-				actionButton.Text =
-					"⚔  KICK + HIT"
-
-				status.Text =
-					"STATUS: COMBAT MODE TIMEOUT"
-
-				return
-
-			end
-
-			if not cycleRunning then
-				return
-			end
-
-			--================================================
-			-- R SPAM
-			--================================================
-
-			status.Text =
-				"STATUS: R SPAM | CYCLE "
-				.. cycle
-				.. "/"
-				.. NORMAL_CYCLES
-
-			local cycleCompleted =
-				firstRPhase(tool)
-
-			if not cycleCompleted then
-
-				cycleRunning = false
-
-				actionButton.Text =
-					"⚔  KICK + HIT"
-
-				status.Text =
-					"STATUS: STOPPED"
-
-				return
-
-			end
-
-		end
-
-		--====================================================
-		-- FINAL UNEQUIP
-		--====================================================
-
-		if not cycleRunning then
-			return
-		end
-
-		status.Text =
-			"STATUS: FINAL UNEQUIP"
-
-		if not unequipTool(tool) then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: FINAL UNEQUIP FAILED"
-
-			return
-
-		end
-
-		task.wait(UNEQUIP_DELAY)
-
-		if not cycleRunning then
-			return
-		end
-
-		--====================================================
-		-- FINAL RE-EQUIP
-		--====================================================
-
-		status.Text =
-			"STATUS: FINAL RE-EQUIP"
-
-		if not equipTool(tool) then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: FINAL RE-EQUIP FAILED"
-
-			return
-
-		end
-
-		task.wait(EQUIP_DELAY)
-
-		if not cycleRunning then
-			return
-		end
-
-		--====================================================
-		-- FINAL LEFT CLICK
-		--====================================================
-
-		status.Text =
-			"STATUS: FINAL LEFT CLICK"
-
-		leftClickTool(tool)
-
-		task.wait(0.10)
-
-		if not cycleRunning then
-			return
-		end
-
-		if not isEquipped(tool) then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: TOOL UNEQUIPPED"
-
-			return
-
-		end
-
-		--====================================================
-		-- FINAL R + LEFT CLICK SPAM
-		--====================================================
-
-		status.Text =
-			"STATUS: R + LEFT CLICK"
-
-		combinedPhase(tool)
-
-		--====================================================
-		-- END
-		--====================================================
-
-		cycleRunning = false
-
-		actionButton.Text =
-			"⚔  KICK + HIT"
-
-		status.Text =
-			"STATUS: READY"
-
-	end)
-
-end
-
---============================================================
--- BUTTON
---============================================================
-
-actionButton.MouseButton1Click:Connect(function()
-
-	if cycleRunning then
-
-		cycleRunning = false
-
-		actionButton.Text =
-			"⚔  KICK + HIT"
-
-		status.Text =
-			"STATUS: STOPPED"
-
-	else
-
-		runSequence()
-
-	end
-
 end)
 
---============================================================
--- 0 HOTKEY
---============================================================
+UserInputService.InputChanged:Connect(function(input)
+	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+		updateSlider(input.Position.X)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = false
+	end
+end)
+
+--==================================================
+-- STATUS
+--==================================================
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 25)
+status.Position = UDim2.new(0, 10, 0, 150)
+status.BackgroundTransparency = 1
+status.Text = "Ready • Press 0"
+status.TextColor3 = Color3.fromRGB(150, 150, 150)
+status.TextSize = 11
+status.Font = Enum.Font.Gotham
+status.TextXAlignment = Enum.TextXAlignment.Center
+status.Parent = content
+
+--==================================================
+-- START SEQUENCE
+--==================================================
+
+local function startAutomation()
+	if running then
+		return
+	end
+
+	if not selectedTool then
+		status.Text = "Select a tool first"
+		return
+	end
+
+	local humanoid = getHumanoid()
+	if not humanoid then
+		status.Text = "Humanoid not found"
+		return
+	end
+
+	running = true
+
+	local tool = selectedTool
+
+	-- Equip
+	pcall(function()
+		humanoid:EquipTool(tool)
+	end)
+
+	task.wait(0.15)
+
+	if not running or not isEquipped(tool) then
+		stopAutomation()
+		status.Text = "Stopped"
+		return
+	end
+
+	-- LEFT CLICK ONCE
+	leftClick(tool)
+
+	--==================================================
+	-- LEFT CLICK SPAM
+	--==================================================
+
+	clickThread = task.spawn(function()
+		while running do
+			if not isEquipped(tool) then
+				stopAutomation()
+				break
+			end
+
+			leftClick(tool)
+			task.wait(CLICK_INTERVAL)
+		end
+	end)
+
+	status.Text = "Left-clicking..."
+
+	--==================================================
+	-- WAIT BEFORE ADDING R SPAM
+	--==================================================
+
+	task.spawn(function()
+		task.wait(rDelay)
+
+		if not running or not isEquipped(tool) then
+			return
+		end
+
+		status.Text = "Left-click + R..."
+
+		--==================================================
+		-- R SPAM ON TOP OF LEFT CLICK SPAM
+		--==================================================
+
+		rThread = task.spawn(function()
+			while running do
+				if not isEquipped(tool) then
+					stopAutomation()
+					break
+				end
+
+				pressR()
+				task.wait(R_INTERVAL)
+			end
+		end)
+	end)
+end
+
+--==================================================
+-- TOGGLE
+--==================================================
+
+local function toggleAutomation()
+	if running then
+		stopAutomation()
+		status.Text = "Stopped • Press 0"
+	else
+		startAutomation()
+	end
+end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-
 	if gameProcessed then
 		return
 	end
 
 	if input.KeyCode == Enum.KeyCode.Zero then
-
-		if cycleRunning then
-
-			cycleRunning = false
-
-			actionButton.Text =
-				"⚔  KICK + HIT"
-
-			status.Text =
-				"STATUS: STOPPED"
-
-		else
-
-			runSequence()
-
-		end
-
+		toggleAutomation()
 	end
-
 end)
 
---============================================================
--- MINIMIZE
---============================================================
+--==================================================
+-- AUTOMATIC STOP WHEN UNEQUIPPED
+--==================================================
 
-local normalSize =
-	UDim2.fromOffset(310, 365)
+local function monitorCharacter(character)
+	character.ChildRemoved:Connect(function(child)
+		if child:IsA("Tool") and running then
+			if child == selectedTool then
+				stopAutomation()
+				status.Text = "Unequipped • Stopped"
+			end
+		end
+	end)
+end
 
-local minimizedSize =
-	UDim2.fromOffset(310, 48)
+if player.Character then
+	monitorCharacter(player.Character)
+end
+
+player.CharacterAdded:Connect(function(character)
+	stopAutomation()
+	status.Text = "Character reset"
+	monitorCharacter(character)
+end)
+
+--==================================================
+-- MINIMIZE / MAXIMIZE
+--==================================================
 
 minimize.MouseButton1Click:Connect(function()
-
 	minimized = not minimized
 
 	if minimized then
-
-		main.Size = minimizedSize
+		content.Visible = false
+		main.Size = UDim2.new(0, 270, 0, 32)
 		minimize.Text = "+"
-
-		for _, child in ipairs(main:GetChildren()) do
-
-			if child ~= topBar
-				and child ~= mainStroke
-				and child ~= mainCorner then
-
-				if child:IsA("GuiObject") then
-					child.Visible = false
-				end
-
-			end
-
-		end
-
 	else
-
-		main.Size = normalSize
+		content.Visible = true
+		main.Size = UDim2.new(0, 270, 0, 205)
 		minimize.Text = "—"
-
-		for _, child in ipairs(main:GetChildren()) do
-
-			if child:IsA("GuiObject") then
-				child.Visible = true
-			end
-
-		end
-
 	end
-
 end)
 
---============================================================
--- DRAGGING
---============================================================
+--==================================================
+-- DRAG WINDOW
+--==================================================
 
 local dragging = false
 local dragStart
 local startPosition
 
 topBar.InputBegan:Connect(function(input)
-
-	if input.UserInputType ==
-		Enum.UserInputType.MouseButton1 then
-
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		dragging = true
 		dragStart = input.Position
 		startPosition = main.Position
-
-		input.Changed:Connect(function()
-
-			if input.UserInputState ==
-				Enum.UserInputState.End then
-
-				dragging = false
-
-			end
-
-		end)
-
 	end
-
 end)
 
 UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
 
-	if not dragging then
-		return
-	end
-
-	if input.UserInputType ~=
-		Enum.UserInputType.MouseMovement then
-		return
-	end
-
-	local delta =
-		input.Position - dragStart
-
-	main.Position =
-		UDim2.new(
+		main.Position = UDim2.new(
 			startPosition.X.Scale,
 			startPosition.X.Offset + delta.X,
 			startPosition.Y.Scale,
 			startPosition.Y.Offset + delta.Y
 		)
-
-end)
-
---============================================================
--- INVENTORY REFRESH
---============================================================
-
-local backpack =
-	player:WaitForChild("Backpack")
-
-backpack.ChildAdded:Connect(function(child)
-
-	if child:IsA("Tool") then
-
-		task.wait()
-
-		refreshTools()
-
 	end
-
 end)
 
-backpack.ChildRemoved:Connect(function(child)
-
-	if child:IsA("Tool") then
-
-		task.wait()
-
-		refreshTools()
-
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
 	end
-
 end)
 
-player.CharacterAdded:Connect(function()
+--==================================================
+-- AUTO REFRESH TOOL SELECTION
+--==================================================
 
-	task.wait(1)
+task.spawn(function()
+	while gui.Parent do
+		task.wait(1)
 
-	refreshTools()
-
+		if not running then
+			refreshToolList()
+		end
+	end
 end)
-
---============================================================
--- INITIALIZE
---============================================================
-
-refreshTools()
-
-status.Text =
-	"STATUS: READY"
