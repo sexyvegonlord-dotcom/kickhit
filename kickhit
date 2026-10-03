@@ -1,7 +1,30 @@
 --============================================================
 -- BRONZE AGE ARMORY
 -- Roblox Studio LocalScript
--- Place in StarterPlayer > StarterPlayerScripts
+--
+-- Place in:
+-- StarterPlayer > StarterPlayerScripts
+--
+-- 0 = START / STOP
+-- GUI button = START / STOP
+--
+-- SEQUENCE:
+--
+-- Equip selected tool
+--       ↓
+-- Activate once
+--       ↓
+-- R ACTION for 2 seconds
+--       ↓
+-- Unequip
+--       ↓
+-- Re-equip
+--       ↓
+-- Activate once
+--       ↓
+-- R ACTION continuously
+--
+-- There is NO further equip/unequip after that.
 --============================================================
 
 local Players = game:GetService("Players")
@@ -16,14 +39,14 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local GUI_NAME = "BronzeAgeArmory"
 
-local R_DURATION = 2
+local R_FIRST_DURATION = 2
 local R_INTERVAL = 0.08
 
 local EQUIP_DELAY = 0.15
 local RESET_DELAY = 0.25
 
 --============================================================
--- REMOVE OLD VERSION
+-- REMOVE PREVIOUS GUI
 --============================================================
 
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
@@ -43,11 +66,20 @@ local minimized = false
 --============================================================
 -- YOUR GAME'S R ACTION
 --============================================================
--- Put whatever YOUR OWN GAME should do when R is pressed here.
+-- IMPORTANT:
+--
+-- A LocalScript cannot manufacture a keyboard R press.
+--
+-- Put the action your OWN game performs when R is pressed here.
+--
+-- For example, if your game has its own R ability function,
+-- call that function here.
+--
+--============================================================
 
 local function onRPressed()
 
-	-- YOUR R ACTION HERE
+	-- YOUR OWN GAME'S R ACTION GOES HERE
 
 end
 
@@ -62,7 +94,7 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
 --============================================================
--- MAIN
+-- MAIN WINDOW
 --============================================================
 
 local main = Instance.new("Frame")
@@ -105,7 +137,6 @@ topCover.BorderSizePixel = 0
 topCover.Parent = topBar
 
 local title = Instance.new("TextLabel")
-title.Name = "Title"
 title.BackgroundTransparency = 1
 title.Position = UDim2.fromOffset(15, 3)
 title.Size = UDim2.new(1, -65, 0, 25)
@@ -204,11 +235,10 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = toolList
 
 --============================================================
--- SELECTED LABEL
+-- SELECTED TOOL
 --============================================================
 
 local selectedLabel = Instance.new("TextLabel")
-selectedLabel.Name = "SelectedLabel"
 selectedLabel.BackgroundTransparency = 1
 selectedLabel.Position = UDim2.fromOffset(16, 247)
 selectedLabel.Size = UDim2.new(1, -32, 0, 22)
@@ -249,7 +279,6 @@ actionStroke.Parent = actionButton
 --============================================================
 
 local status = Instance.new("TextLabel")
-status.Name = "Status"
 status.BackgroundTransparency = 1
 status.Position = UDim2.fromOffset(16, 336)
 status.Size = UDim2.new(1, -32, 0, 18)
@@ -271,27 +300,19 @@ local function getTools()
 	local backpack = player:FindFirstChildOfClass("Backpack")
 
 	if backpack then
-
 		for _, item in ipairs(backpack:GetChildren()) do
-
 			if item:IsA("Tool") then
 				table.insert(tools, item)
 			end
-
 		end
-
 	end
 
 	if player.Character then
-
 		for _, item in ipairs(player.Character:GetChildren()) do
-
 			if item:IsA("Tool") then
 				table.insert(tools, item)
 			end
-
 		end
-
 	end
 
 	table.sort(tools, function(a, b)
@@ -308,11 +329,9 @@ end
 local function refreshTools()
 
 	for _, child in ipairs(toolList:GetChildren()) do
-
 		if child:IsA("TextButton") then
 			child:Destroy()
 		end
-
 	end
 
 	local tools = getTools()
@@ -337,21 +356,17 @@ local function refreshTools()
 		corner.Parent = button
 
 		button.MouseEnter:Connect(function()
-
 			if selectedTool ~= tool then
 				button.BackgroundColor3 =
 					Color3.fromRGB(86, 59, 32)
 			end
-
 		end)
 
 		button.MouseLeave:Connect(function()
-
 			if selectedTool ~= tool then
 				button.BackgroundColor3 =
 					Color3.fromRGB(61, 43, 26)
 			end
-
 		end)
 
 		button.MouseButton1Click:Connect(function()
@@ -361,16 +376,11 @@ local function refreshTools()
 			selectedLabel.Text =
 				"SELECTED: " .. tool.Name
 
-			selectedLabel.TextColor3 =
-				Color3.fromRGB(238, 200, 121)
-
 			for _, other in ipairs(toolList:GetChildren()) do
-
 				if other:IsA("TextButton") then
 					other.BackgroundColor3 =
 						Color3.fromRGB(61, 43, 26)
 				end
-
 			end
 
 			button.BackgroundColor3 =
@@ -378,9 +388,7 @@ local function refreshTools()
 
 			status.Text =
 				"STATUS: " .. tool.Name .. " SELECTED"
-
 		end)
-
 	end
 
 	task.wait()
@@ -395,7 +403,7 @@ local function refreshTools()
 end
 
 --============================================================
--- WAIT FOR TOOL PARENT
+-- WAIT FOR TOOL LOCATION
 --============================================================
 
 local function waitForParent(tool, expectedParent, timeout)
@@ -414,7 +422,7 @@ local function waitForParent(tool, expectedParent, timeout)
 end
 
 --============================================================
--- EQUIP TOOL
+-- EQUIP
 --============================================================
 
 local function equipTool(tool)
@@ -437,24 +445,21 @@ local function equipTool(tool)
 		return false
 	end
 
-	-- Already equipped
 	if tool.Parent == character then
 		return true
 	end
 
-	-- Tool MUST be in Backpack
 	if tool.Parent ~= backpack then
 		return false
 	end
 
 	humanoid:EquipTool(tool)
 
-	-- Wait until Roblox actually equips it
 	return waitForParent(tool, character, 1)
 end
 
 --============================================================
--- UNEQUIP TOOL
+-- UNEQUIP
 --============================================================
 
 local function unequipTool(tool)
@@ -477,26 +482,26 @@ local function unequipTool(tool)
 		return false
 	end
 
-	-- Already in Backpack
 	if tool.Parent == backpack then
 		return true
 	end
 
-	-- Make sure this is actually the equipped tool
 	if tool.Parent == character then
 
 		humanoid:UnequipTools()
 
-		-- WAIT until it really reaches Backpack
-		return waitForParent(tool, backpack, 1)
-
+		return waitForParent(
+			tool,
+			backpack,
+			1
+		)
 	end
 
 	return false
 end
 
 --============================================================
--- ACTIVATE TOOL ONCE
+-- ACTIVATE ONCE
 --============================================================
 
 local function activateTool(tool)
@@ -505,41 +510,48 @@ local function activateTool(tool)
 		return
 	end
 
-	local character = player.Character
-
-	if tool.Parent == character then
+	if tool.Parent == player.Character then
 		tool:Activate()
 	end
 
 end
 
 --============================================================
--- R ACTION LOOP
+-- FIRST R PHASE
 --============================================================
 
-local function runRSequence()
+local function runFirstRPhase()
 
 	local startTime = os.clock()
 
-	while cycleRunning do
-
-		if os.clock() - startTime >= R_DURATION then
-			break
-		end
+	while cycleRunning
+		and os.clock() - startTime < R_FIRST_DURATION do
 
 		onRPressed()
 
 		task.wait(R_INTERVAL)
-
 	end
-
 end
 
 --============================================================
--- MAIN CYCLE
+-- CONTINUOUS R PHASE
 --============================================================
 
-local function runCycle()
+local function runContinuousRPhase()
+
+	while cycleRunning do
+
+		onRPressed()
+
+		task.wait(R_INTERVAL)
+	end
+end
+
+--============================================================
+-- MAIN SEQUENCE
+--============================================================
+
+local function runSequence()
 
 	if not selectedTool then
 
@@ -555,120 +567,133 @@ local function runCycle()
 
 	task.spawn(function()
 
-		while cycleRunning do
+		--====================================================
+		-- STEP 1: EQUIP
+		--====================================================
 
-			--================================================
-			-- MAKE SURE TOOL STILL EXISTS
-			--================================================
+		status.Text = "STATUS: EQUIPPING"
 
-			if not selectedTool
-				or not selectedTool.Parent then
-
-				status.Text =
-					"STATUS: TOOL LOST"
-
-				break
-			end
-
-			--================================================
-			-- EQUIP
-			--================================================
+		if not equipTool(selectedTool) then
 
 			status.Text =
-				"STATUS: EQUIPPING"
+				"STATUS: EQUIP FAILED"
 
-			local equipped =
-				equipTool(selectedTool)
+			cycleRunning = false
 
-			if not equipped then
+			return
+		end
 
-				status.Text =
-					"STATUS: EQUIP FAILED"
+		task.wait(EQUIP_DELAY)
 
-				break
-			end
-
-			-- IMPORTANT:
-			-- Give the character/tool state time to settle.
-			task.wait(EQUIP_DELAY)
-
-			if not cycleRunning then
-				break
-			end
-
-			--================================================
-			-- CLICK ONCE
-			--================================================
-
-			status.Text =
-				"STATUS: HIT"
-
-			activateTool(selectedTool)
-
-			task.wait(0.05)
-
-			if not cycleRunning then
-				break
-			end
-
-			--================================================
-			-- R FOR 2 SECONDS
-			--================================================
-
-			status.Text =
-				"STATUS: R ACTION ACTIVE"
-
-			runRSequence()
-
-			if not cycleRunning then
-				break
-			end
-
-			--================================================
-			-- UNEQUIP
-			--================================================
-
-			status.Text =
-				"STATUS: UNEQUIPPING"
-
-			local unequipped =
-				unequipTool(selectedTool)
-
-			if not unequipped then
-
-				status.Text =
-					"STATUS: UNEQUIP FAILED"
-
-				break
-			end
-
-			-- IMPORTANT:
-			-- Wait after confirmed unequip.
-			task.wait(RESET_DELAY)
-
-			if not cycleRunning then
-				break
-			end
-
-			--================================================
-			-- LOOP STARTS AGAIN
-			--================================================
-			-- equipTool() now sees the Tool in Backpack
-			-- and moves it back into Character.
-
+		if not cycleRunning then
+			return
 		end
 
 		--====================================================
-		-- FINISH
+		-- STEP 2: LEFT CLICK ONCE
+		--====================================================
+
+		status.Text = "STATUS: HIT"
+
+		activateTool(selectedTool)
+
+		task.wait(0.05)
+
+		if not cycleRunning then
+			return
+		end
+
+		--====================================================
+		-- STEP 3: R FOR 2 SECONDS
+		--====================================================
+
+		status.Text =
+			"STATUS: R ACTION — 2 SEC"
+
+		runFirstRPhase()
+
+		if not cycleRunning then
+			return
+		end
+
+		--====================================================
+		-- STEP 4: UNEQUIP
+		--====================================================
+
+		status.Text =
+			"STATUS: UNEQUIPPING"
+
+		if not unequipTool(selectedTool) then
+
+			status.Text =
+				"STATUS: UNEQUIP FAILED"
+
+			cycleRunning = false
+
+			return
+		end
+
+		task.wait(RESET_DELAY)
+
+		if not cycleRunning then
+			return
+		end
+
+		--====================================================
+		-- STEP 5: RE-EQUIP
+		--====================================================
+
+		status.Text =
+			"STATUS: RE-EQUIPPING"
+
+		if not equipTool(selectedTool) then
+
+			status.Text =
+				"STATUS: RE-EQUIP FAILED"
+
+			cycleRunning = false
+
+			return
+		end
+
+		task.wait(EQUIP_DELAY)
+
+		if not cycleRunning then
+			return
+		end
+
+		--====================================================
+		-- STEP 6: LEFT CLICK ONCE AGAIN
+		--====================================================
+
+		status.Text =
+			"STATUS: SECOND HIT"
+
+		activateTool(selectedTool)
+
+		task.wait(0.05)
+
+		if not cycleRunning then
+			return
+		end
+
+		--====================================================
+		-- STEP 7: CONTINUOUS R
+		--====================================================
+
+		status.Text =
+			"STATUS: R ACTION — CONTINUOUS"
+
+		runContinuousRPhase()
+
+		--====================================================
+		-- FINISHED
 		--====================================================
 
 		cycleRunning = false
 
 		actionButton.Text =
 			"⚔  KICK + HIT"
-
-		actionButton.BackgroundColor3 =
-			Color3.fromRGB(110, 69, 30)
 
 		status.Text =
 			"STATUS: READY"
@@ -677,7 +702,7 @@ local function runCycle()
 end
 
 --============================================================
--- ACTION BUTTON
+-- GUI BUTTON
 --============================================================
 
 actionButton.MouseButton1Click:Connect(function()
@@ -686,14 +711,47 @@ actionButton.MouseButton1Click:Connect(function()
 
 		cycleRunning = false
 
+		actionButton.Text =
+			"⚔  KICK + HIT"
+
 		status.Text =
-			"STATUS: STOPPING"
+			"STATUS: STOPPED"
 
 		return
 	end
 
-	runCycle()
+	runSequence()
 
+end)
+
+--============================================================
+-- 0 HOTKEY
+--============================================================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.Zero then
+
+		if cycleRunning then
+
+			cycleRunning = false
+
+			actionButton.Text =
+				"⚔  KICK + HIT"
+
+			status.Text =
+				"STATUS: STOPPED"
+
+		else
+
+			runSequence()
+
+		end
+	end
 end)
 
 --============================================================
@@ -726,7 +784,6 @@ minimize.MouseButton1Click:Connect(function()
 				end
 
 			end
-
 		end
 
 	else
@@ -741,13 +798,11 @@ minimize.MouseButton1Click:Connect(function()
 			end
 
 		end
-
 	end
-
 end)
 
 --============================================================
--- DRAG WINDOW
+-- DRAGGING
 --============================================================
 
 local dragging = false
@@ -760,7 +815,6 @@ topBar.InputBegan:Connect(function(input)
 		Enum.UserInputType.MouseButton1 then
 
 		dragging = true
-
 		dragStart = input.Position
 		startPosition = main.Position
 
@@ -772,11 +826,8 @@ topBar.InputBegan:Connect(function(input)
 				dragging = false
 
 			end
-
 		end)
-
 	end
-
 end)
 
 UserInputService.InputChanged:Connect(function(input)
@@ -787,7 +838,6 @@ UserInputService.InputChanged:Connect(function(input)
 
 	if input.UserInputType ~=
 		Enum.UserInputType.MouseMovement then
-
 		return
 	end
 
@@ -801,7 +851,6 @@ UserInputService.InputChanged:Connect(function(input)
 			startPosition.Y.Scale,
 			startPosition.Y.Offset + delta.Y
 		)
-
 end)
 
 --============================================================
@@ -818,9 +867,7 @@ backpack.ChildAdded:Connect(function(child)
 		task.wait()
 
 		refreshTools()
-
 	end
-
 end)
 
 backpack.ChildRemoved:Connect(function(child)
@@ -830,9 +877,7 @@ backpack.ChildRemoved:Connect(function(child)
 		task.wait()
 
 		refreshTools()
-
 	end
-
 end)
 
 player.CharacterAdded:Connect(function()
@@ -840,7 +885,6 @@ player.CharacterAdded:Connect(function()
 	task.wait(1)
 
 	refreshTools()
-
 end)
 
 --============================================================
