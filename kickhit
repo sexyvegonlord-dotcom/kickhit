@@ -1,7 +1,7 @@
 -- EMO TOOL CONTROLLER
 -- 0 = Toggle automation
 -- P = Force GUI visible
--- Delay = 0.000 - 5.000 seconds
+-- Delay = 0.00000 - 5.00000 seconds
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,13 +12,20 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local GUI_NAME = "EmoToolController"
 
--- Remove older version
+--==================================================
+-- REMOVE OLD VERSION
+--==================================================
+
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
+
 if oldGui then
     oldGui:Destroy()
 end
 
--- Settings
+--==================================================
+-- SETTINGS
+--==================================================
+
 local CLICK_INTERVAL = 0.08
 local R_INTERVAL = 0.08
 
@@ -110,7 +117,6 @@ close.TextSize = 20
 close.Font = Enum.Font.GothamBold
 close.Parent = main
 
--- Close button no longer permanently closes GUI
 close.MouseButton1Click:Connect(function()
     main.Visible = false
 
@@ -170,12 +176,15 @@ delayLabel.TextXAlignment = Enum.TextXAlignment.Left
 delayLabel.Parent = main
 
 local delayBox = Instance.new("TextBox")
-delayBox.Size = UDim2.new(0, 100, 0, 28)
+delayBox.Size = UDim2.new(0, 120, 0, 28)
 delayBox.Position = UDim2.new(0, 90, 0, 163)
 delayBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 delayBox.BorderSizePixel = 0
-delayBox.Text = "0.000"
-delayBox.PlaceholderText = "0.000 - 5.000"
+
+-- FIVE DECIMAL PLACES
+delayBox.Text = "0.00000"
+delayBox.PlaceholderText = "0.00000 - 5.00000"
+
 delayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 delayBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
 delayBox.TextSize = 12
@@ -192,11 +201,14 @@ delayBox.FocusLost:Connect(function()
 
     if value then
         value = math.clamp(value, 0, 5)
+
         delayTime = value
-        delayBox.Text = string.format("%.3f", value)
+
+        -- ALWAYS DISPLAY 5 DECIMAL PLACES
+        delayBox.Text = string.format("%.5f", value)
     else
         delayTime = 0
-        delayBox.Text = "0.000"
+        delayBox.Text = "0.00000"
     end
 end)
 
@@ -306,6 +318,7 @@ local function refreshTools()
 
     for _, tool in ipairs(tools) do
         local button = Instance.new("TextButton")
+
         button.Size = UDim2.new(1, -6, 0, 25)
         button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         button.BorderSizePixel = 0
@@ -333,7 +346,12 @@ local function refreshTools()
         end)
     end
 
-    toolList.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 5)
+    toolList.CanvasSize = UDim2.new(
+        0,
+        0,
+        0,
+        layout.AbsoluteContentSize.Y + 5
+    )
 end
 
 refreshTools()
@@ -468,10 +486,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if input.KeyCode == Enum.KeyCode.P then
         gui.Parent = playerGui
         gui.Enabled = true
-
         main.Visible = true
 
-        -- If minimized, restore it too
         minimized = false
         main.Size = UDim2.new(0, 300, 0, 270)
 
@@ -481,7 +497,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
             end
         end
 
-        -- Keep buttons visible
         title.Visible = true
         subtitle.Visible = true
         minimize.Visible = true
@@ -510,13 +525,8 @@ task.spawn(function()
             gui.Parent = playerGui
         end
 
-        -- Keep it enabled, but P is the manual way to bring it
-        -- back after another GUI visually covers it.
         gui.Enabled = true
-
-        if gui.DisplayOrder ~= 999999 then
-            gui.DisplayOrder = 999999
-        end
+        gui.DisplayOrder = 999999
     end
 end)
 
@@ -536,3 +546,4 @@ end)
 print("† TOOL CONTROLLER loaded")
 print("P = Show GUI")
 print("0 = Toggle automation")
+print("Delay precision = 0.00000")
