@@ -2,6 +2,7 @@
 -- 0 = Toggle automation
 -- P = Force GUI visible
 -- Delay = 0.00000 - 5.00000 seconds
+-- Automatically detects new/equipped/unequipped tools
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -180,11 +181,8 @@ delayBox.Size = UDim2.new(0, 120, 0, 28)
 delayBox.Position = UDim2.new(0, 90, 0, 163)
 delayBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 delayBox.BorderSizePixel = 0
-
--- FIVE DECIMAL PLACES
 delayBox.Text = "0.00000"
 delayBox.PlaceholderText = "0.00000 - 5.00000"
-
 delayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 delayBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
 delayBox.TextSize = 12
@@ -201,10 +199,7 @@ delayBox.FocusLost:Connect(function()
 
     if value then
         value = math.clamp(value, 0, 5)
-
         delayTime = value
-
-        -- ALWAYS DISPLAY 5 DECIMAL PLACES
         delayBox.Text = string.format("%.5f", value)
     else
         delayTime = 0
@@ -294,6 +289,10 @@ end)
 --==================================================
 
 local function refreshTools()
+    -- Remember currently selected tool
+    local previousSelection = selectedTool
+
+    -- Remove old buttons
     for _, child in ipairs(toolList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
@@ -301,21 +300,27 @@ local function refreshTools()
     end
 
     local tools = {}
+    local seen = {}
 
+    -- Get Backpack tools
     for _, tool in ipairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") then
+        if tool:IsA("Tool") and not seen[tool] then
+            seen[tool] = true
             table.insert(tools, tool)
         end
     end
 
+    -- Get equipped Character tools
     if player.Character then
         for _, tool in ipairs(player.Character:GetChildren()) do
-            if tool:IsA("Tool") then
+            if tool:IsA("Tool") and not seen[tool] then
+                seen[tool] = true
                 table.insert(tools, tool)
             end
         end
     end
 
+    -- Create buttons
     for _, tool in ipairs(tools) do
         local button = Instance.new("TextButton")
 
@@ -331,6 +336,13 @@ local function refreshTools()
         local buttonCorner = Instance.new("UICorner")
         buttonCorner.CornerRadius = UDim.new(0, 4)
         buttonCorner.Parent = button
+
+        -- Keep selected tool highlighted after refresh
+        if tool == previousSelection then
+            button.BackgroundColor3 = Color3.fromRGB(100, 25, 25)
+            selectedButton = button
+            selectedTool = tool
+        end
 
         button.MouseButton1Click:Connect(function()
             selectedTool = tool
@@ -354,10 +366,59 @@ local function refreshTools()
     )
 end
 
+--==================================================
+-- AUTOMATIC TOOL DETECTION
+--==================================================
+
+local function connectContainer(container)
+    if not container then
+        return
+    end
+
+    container.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            task.defer(refreshTools)
+        end
+    end)
+
+    container.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            task.defer(refreshTools)
+        end
+    end)
+end
+
+-- Backpack changes
+connectContainer(player.Backpack)
+
+-- Character changes
+if player.Character then
+    connectContainer(player.Character)
+end
+
+-- Character replacement
+player.CharacterAdded:Connect(function(character)
+    task.wait(0.2)
+
+    connectContainer(character)
+    refreshTools()
+end)
+
+-- Initial refresh
 refreshTools()
 
-player.Backpack.ChildAdded:Connect(refreshTools)
-player.Backpack.ChildRemoved:Connect(refreshTools)
+--==================================================
+-- EXTRA TOOL WATCHDOG
+--==================================================
+-- This catches tools that may be inserted/moved in unusual ways.
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+
+        refreshTools()
+    end
+end)
 
 --==================================================
 -- AUTOMATION
@@ -547,3 +608,4 @@ print("† TOOL CONTROLLER loaded")
 print("P = Show GUI")
 print("0 = Toggle automation")
 print("Delay precision = 0.00000")
+print("Automatic tool detection = ON")
