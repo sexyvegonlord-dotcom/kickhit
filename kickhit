@@ -1,15 +1,17 @@
+```lua
 --// EMO TOOL CONTROLLER
---// Roblox Studio LocalScript
---// StarterPlayer > StarterPlayerScripts
---
+--// Roblox Studio LocalScript / Executor-compatible
+--//
 --// 0 = Start / Stop
 --// Select tool -> press 0
 --// Equip -> left click once
 --// Left-click spam begins
 --// After adjustable delay -> R spam layers on
 --// Unequipping selected tool stops everything
---
---// R DELAY PRECISION: 0.001 seconds
+--//
+--// R DELAY: 0.000 - 5.000 seconds
+--// TextBox input with 0.001 precision
+--// Reload-safe: destroys older GUI versions
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -203,8 +205,6 @@ local topCorner = Instance.new("UICorner")
 topCorner.CornerRadius = UDim.new(0, 12)
 topCorner.Parent = topBar
 
--- Red accent line
-
 local accent = Instance.new("Frame")
 accent.Size = UDim2.new(1, -24, 0, 2)
 accent.Position = UDim2.new(0, 12, 1, -3)
@@ -216,7 +216,9 @@ local accentCorner = Instance.new("UICorner")
 accentCorner.CornerRadius = UDim.new(1, 0)
 accentCorner.Parent = accent
 
--- Title
+--==================================================
+-- TITLE
+--==================================================
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -90, 0, 22)
@@ -240,7 +242,9 @@ subtitle.Font = Enum.Font.Gotham
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.Parent = topBar
 
--- Minimize
+--==================================================
+-- MINIMIZE
+--==================================================
 
 local minimize = Instance.new("TextButton")
 minimize.Size = UDim2.new(0, 30, 0, 27)
@@ -258,7 +262,9 @@ local minCorner = Instance.new("UICorner")
 minCorner.CornerRadius = UDim.new(0, 6)
 minCorner.Parent = minimize
 
--- Close / reload-style button
+--==================================================
+-- CLOSE
+--==================================================
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 30, 0, 27)
@@ -361,6 +367,7 @@ listLayout.Parent = toolList
 --==================================================
 
 local function refreshToolList()
+
 	for _, child in ipairs(toolList:GetChildren()) do
 		if child:IsA("TextButton") then
 			child:Destroy()
@@ -390,6 +397,7 @@ local function refreshToolList()
 	end
 
 	for _, tool in ipairs(tools) do
+
 		local button = Instance.new("TextButton")
 
 		button.Size = UDim2.new(1, -8, 0, 27)
@@ -419,12 +427,15 @@ local function refreshToolList()
 		end)
 
 		button.MouseButton1Click:Connect(function()
+
 			selectedTool = tool
 
 			toolButton.Text = "†  " .. tool.Name
 
 			toolList.Visible = false
+
 		end)
+
 	end
 
 	toolList.CanvasSize = UDim2.new(
@@ -433,12 +444,15 @@ local function refreshToolList()
 		0,
 		listLayout.AbsoluteContentSize.Y + 5
 	)
+
 end
 
 toolButton.MouseButton1Click:Connect(function()
+
 	refreshToolList()
 
 	toolList.Visible = not toolList.Visible
+
 end)
 
 --==================================================
@@ -458,157 +472,85 @@ delayTitle.TextXAlignment = Enum.TextXAlignment.Left
 delayTitle.Parent = content
 
 --==================================================
--- DELAY VALUE
+-- DELAY TEXTBOX
 --==================================================
 
-local delayValue = Instance.new("TextLabel")
-delayValue.Size = UDim2.new(0, 90, 0, 20)
-delayValue.Position = UDim2.new(1, -104, 0, 106)
+local delayBox = Instance.new("TextBox")
 
-delayValue.BackgroundTransparency = 1
-delayValue.Text = string.format("%.3fs", rDelay)
-delayValue.TextColor3 = RED_BRIGHT
-delayValue.TextSize = 11
-delayValue.Font = Enum.Font.GothamBold
-delayValue.TextXAlignment = Enum.TextXAlignment.Right
-delayValue.Parent = content
+delayBox.Size = UDim2.new(0, 105, 0, 30)
+delayBox.Position = UDim2.new(1, -119, 0, 103)
+
+delayBox.BackgroundColor3 = PANEL2
+delayBox.BorderSizePixel = 0
+
+delayBox.Text = string.format("%.3f", rDelay)
+delayBox.PlaceholderText = "0.000 - 5.000"
+
+delayBox.TextColor3 = RED_BRIGHT
+delayBox.PlaceholderColor3 = GREY
+
+delayBox.TextSize = 11
+delayBox.Font = Enum.Font.GothamBold
+delayBox.TextXAlignment = Enum.TextXAlignment.Center
+
+delayBox.ClearTextOnFocus = false
+
+delayBox.Parent = content
+
+local delayBoxCorner = Instance.new("UICorner")
+delayBoxCorner.CornerRadius = UDim.new(0, 7)
+delayBoxCorner.Parent = delayBox
+
+local delayBoxStroke = Instance.new("UIStroke")
+delayBoxStroke.Color = DARK_GREY
+delayBoxStroke.Thickness = 1
+delayBoxStroke.Transparency = 0.2
+delayBoxStroke.Parent = delayBox
 
 --==================================================
--- SLIDER
+-- DELAY INPUT HANDLER
 --==================================================
 
-local sliderBack = Instance.new("Frame")
-sliderBack.Size = UDim2.new(1, -40, 0, 6)
-sliderBack.Position = UDim2.new(0, 20, 0, 137)
+local function updateDelayFromText()
 
-sliderBack.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
-sliderBack.BorderSizePixel = 0
-sliderBack.Parent = content
+	local text = delayBox.Text
 
-local sliderCorner = Instance.new("UICorner")
-sliderCorner.CornerRadius = UDim.new(1, 0)
-sliderCorner.Parent = sliderBack
+	-- Remove anything that isn't a number or decimal point
+	text = text:gsub("[^%d%.]", "")
 
-local initialPercent =
-	(rDelay - MIN_R_DELAY) /
-	(MAX_R_DELAY - MIN_R_DELAY)
+	-- Keep only the first decimal point
+	local firstDot = text:find("%.")
 
-local sliderFill = Instance.new("Frame")
-sliderFill.Size = UDim2.new(initialPercent, 0, 1, 0)
-sliderFill.BackgroundColor3 = RED
-sliderFill.BorderSizePixel = 0
-sliderFill.Parent = sliderBack
+	if firstDot then
 
-local fillCorner = Instance.new("UICorner")
-fillCorner.CornerRadius = UDim.new(1, 0)
-fillCorner.Parent = sliderFill
+		local before = text:sub(1, firstDot)
+		local after = text:sub(firstDot + 1):gsub("%.", "")
 
-local knob = Instance.new("Frame")
-knob.Size = UDim2.new(0, 14, 0, 14)
-knob.AnchorPoint = Vector2.new(0.5, 0.5)
-knob.Position = UDim2.new(initialPercent, 0, 0.5, 0)
+		text = before .. after
 
-knob.BackgroundColor3 = RED_BRIGHT
-knob.BorderSizePixel = 0
-knob.Parent = sliderBack
+	end
 
-local knobCorner = Instance.new("UICorner")
-knobCorner.CornerRadius = UDim.new(1, 0)
-knobCorner.Parent = knob
+	local value = tonumber(text)
 
-local knobStroke = Instance.new("UIStroke")
-knobStroke.Color = Color3.fromRGB(255, 100, 120)
-knobStroke.Thickness = 1
-knobStroke.Parent = knob
+	if not value then
+		value = DEFAULT_R_DELAY
+	end
 
-local draggingSlider = false
+	-- Clamp to 0.000 - 5.000
+	value = math.clamp(value, MIN_R_DELAY, MAX_R_DELAY)
 
-local function updateSlider(mouseX)
-	local relative =
-		(mouseX - sliderBack.AbsolutePosition.X) /
-		sliderBack.AbsoluteSize.X
+	-- 0.001 second precision
+	value = math.floor(value * 1000 + 0.5) / 1000
 
-	relative = math.clamp(relative, 0, 1)
+	rDelay = value
 
-	-- 0.001 SECOND PRECISION
-	local rawValue =
-		MIN_R_DELAY +
-		(MAX_R_DELAY - MIN_R_DELAY) * relative
+	delayBox.Text = string.format("%.3f", rDelay)
 
-	rDelay = math.floor(rawValue * 1000 + 0.5) / 1000
-
-	local visualPercent =
-		(rDelay - MIN_R_DELAY) /
-		(MAX_R_DELAY - MIN_R_DELAY)
-
-	sliderFill.Size = UDim2.new(
-		visualPercent,
-		0,
-		1,
-		0
-	)
-
-	knob.Position = UDim2.new(
-		visualPercent,
-		0,
-		0.5,
-		0
-	)
-
-	delayValue.Text = string.format(
-		"%.3fs",
-		rDelay
-	)
 end
 
-sliderBack.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingSlider = true
-		updateSlider(input.Position.X)
-	end
+delayBox.FocusLost:Connect(function()
+	updateDelayFromText()
 end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if draggingSlider
-		and input.UserInputType == Enum.UserInputType.MouseMovement then
-
-		updateSlider(input.Position.X)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingSlider = false
-	end
-end)
-
---==================================================
--- DELAY RANGE LABELS
---==================================================
-
-local minLabel = Instance.new("TextLabel")
-minLabel.Size = UDim2.new(0, 60, 0, 15)
-minLabel.Position = UDim2.new(0, 20, 0, 148)
-
-minLabel.BackgroundTransparency = 1
-minLabel.Text = "0.000s"
-minLabel.TextColor3 = GREY
-minLabel.TextSize = 8
-minLabel.Font = Enum.Font.Gotham
-minLabel.TextXAlignment = Enum.TextXAlignment.Left
-minLabel.Parent = content
-
-local maxLabel = Instance.new("TextLabel")
-maxLabel.Size = UDim2.new(0, 60, 0, 15)
-maxLabel.Position = UDim2.new(1, -80, 0, 148)
-
-maxLabel.BackgroundTransparency = 1
-maxLabel.Text = "5.000s"
-maxLabel.TextColor3 = GREY
-maxLabel.TextSize = 8
-maxLabel.Font = Enum.Font.Gotham
-maxLabel.TextXAlignment = Enum.TextXAlignment.Right
-maxLabel.Parent = content
 
 --==================================================
 -- STATUS
@@ -616,7 +558,7 @@ maxLabel.Parent = content
 
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -28, 0, 25)
-status.Position = UDim2.new(0, 14, 0, 177)
+status.Position = UDim2.new(0, 14, 0, 150)
 
 status.BackgroundColor3 = PANEL
 status.Text = "●  READY  •  PRESS 0"
@@ -635,8 +577,10 @@ statusCorner.Parent = status
 --==================================================
 
 local function setStatus(text, color)
+
 	status.Text = "●  " .. text
 	status.TextColor3 = color or GREY
+
 end
 
 --==================================================
@@ -644,6 +588,7 @@ end
 --==================================================
 
 local function startAutomation()
+
 	if running then
 		return
 	end
@@ -659,6 +604,9 @@ local function startAutomation()
 		setStatus("HUMANOID NOT FOUND", RED_BRIGHT)
 		return
 	end
+
+	-- Make sure current textbox value is applied
+	updateDelayFromText()
 
 	local tool = selectedTool
 
@@ -677,9 +625,13 @@ local function startAutomation()
 	task.wait(EQUIP_DELAY)
 
 	if not running or not isEquipped(tool) then
+
 		stopAutomation()
+
 		setStatus("STOPPED", GREY)
+
 		return
+
 	end
 
 	--==================================================
@@ -693,18 +645,25 @@ local function startAutomation()
 	--==================================================
 
 	clickThread = task.spawn(function()
+
 		while running do
 
 			if not isEquipped(tool) then
+
 				stopAutomation()
+
 				setStatus("UNEQUIPPED • STOPPED", GREY)
+
 				break
+
 			end
 
 			leftClick(tool)
 
 			task.wait(CLICK_INTERVAL)
+
 		end
+
 	end)
 
 	setStatus("LEFT CLICKING...", RED_BRIGHT)
@@ -722,9 +681,13 @@ local function startAutomation()
 		end
 
 		if not isEquipped(tool) then
+
 			stopAutomation()
+
 			setStatus("UNEQUIPPED • STOPPED", GREY)
+
 			return
+
 		end
 
 		setStatus(
@@ -741,19 +704,25 @@ local function startAutomation()
 			while running do
 
 				if not isEquipped(tool) then
+
 					stopAutomation()
+
 					setStatus("UNEQUIPPED • STOPPED", GREY)
+
 					break
+
 				end
 
 				pressR()
 
 				task.wait(R_INTERVAL)
+
 			end
 
 		end)
 
 	end)
+
 end
 
 --==================================================
@@ -880,7 +849,7 @@ minimize.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- CLOSE / RELOAD
+-- CLOSE
 --==================================================
 
 closeButton.MouseButton1Click:Connect(function()
@@ -963,3 +932,4 @@ end)
 --==================================================
 
 refreshToolList()
+```
