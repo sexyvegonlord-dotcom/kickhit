@@ -8,11 +8,20 @@
 -- 2. Equip selected tool
 -- 3. Left click / activate once
 -- 4. Spam R
+--
+-- NORMAL_CYCLES times:
 -- 5. STOP R COMPLETELY
 -- 6. Unequip
 -- 7. Re-equip
 -- 8. Left click / activate once
--- 9. Spam R + activate tool repeatedly
+-- 9. Spam R
+--
+-- AFTER NORMAL_CYCLES:
+-- 10. STOP R COMPLETELY
+-- 11. Unequip
+-- 12. Re-equip
+-- 13. Left click / activate once
+-- 14. Spam R + activate tool repeatedly
 --
 -- 0 = START / STOP
 -- GUI BUTTON = START / STOP
@@ -30,6 +39,9 @@ local playerGui = player:WaitForChild("PlayerGui")
 --============================================================
 
 local GUI_NAME = "BronzeAgeArmory"
+
+-- CHANGE THIS NUMBER
+local NORMAL_CYCLES = 3
 
 local FIRST_R_DURATION = 2
 local R_INTERVAL = 0.08
@@ -83,9 +95,6 @@ end
 
 --============================================================
 -- ACTIVATE / LEFT CLICK
---============================================================
--- Tool:Activate() is used because it reliably performs
--- the equipped Tool's normal activation.
 --============================================================
 
 local function leftClickTool(tool)
@@ -574,7 +583,7 @@ local function isEquipped(tool)
 end
 
 --============================================================
--- FIRST R PHASE
+-- R PHASE
 --============================================================
 
 local function firstRPhase(tool)
@@ -584,14 +593,12 @@ local function firstRPhase(tool)
 	while cycleRunning
 		and os.clock() - startTime < FIRST_R_DURATION do
 
-		-- Stop immediately if unequipped
 		if not isEquipped(tool) then
 			return false
 		end
 
 		pressR()
 
-		-- Check again after the key press
 		if not cycleRunning then
 			return false
 		end
@@ -612,8 +619,6 @@ local function combinedPhase(tool)
 
 	while cycleRunning do
 
-		-- If tool is unequipped,
-		-- STOP EVERYTHING immediately.
 		if not isEquipped(tool) then
 			return
 		end
@@ -663,7 +668,7 @@ local function runSequence()
 		local tool = selectedTool
 
 		--====================================================
-		-- 1. EQUIP
+		-- INITIAL EQUIP
 		--====================================================
 
 		status.Text =
@@ -690,7 +695,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 2. FIRST LEFT CLICK
+		-- INITIAL LEFT CLICK
 		--====================================================
 
 		status.Text =
@@ -705,22 +710,14 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 3. FIRST R SPAM
+		-- INITIAL R SPAM
 		--====================================================
 
 		status.Text =
-			"STATUS: R SPAM"
+			"STATUS: R SPAM  |  INITIAL"
 
 		local completed =
 			firstRPhase(tool)
-
-		--====================================================
-		-- IMPORTANT:
-		-- R SPAM IS NOW COMPLETELY OVER.
-		--
-		-- Nothing calls pressR() between here and
-		-- the final combined phase.
-		--====================================================
 
 		if not completed then
 
@@ -741,11 +738,160 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 4. UNEQUIP
+		-- NORMAL CYCLES
+		--====================================================
+		--
+		-- Each cycle:
+		-- UNEQUIP
+		-- RE-EQUIP
+		-- LEFT CLICK
+		-- R SPAM
+		--
+		-- Number of cycles controlled by:
+		-- NORMAL_CYCLES
 		--====================================================
 
+		for cycle = 1, NORMAL_CYCLES do
+
+			if not cycleRunning then
+				return
+			end
+
+			--================================================
+			-- UNEQUIP
+			--================================================
+
+			status.Text =
+				"STATUS: UNEQUIPPING  |  CYCLE "
+				.. cycle
+				.. "/"
+				.. NORMAL_CYCLES
+
+			if not unequipTool(tool) then
+
+				cycleRunning = false
+
+				actionButton.Text =
+					"⚔  KICK + HIT"
+
+				status.Text =
+					"STATUS: UNEQUIP FAILED"
+
+				return
+
+			end
+
+			task.wait(UNEQUIP_DELAY)
+
+			if not cycleRunning then
+				return
+			end
+
+			--================================================
+			-- RE-EQUIP
+			--================================================
+
+			status.Text =
+				"STATUS: RE-EQUIPPING  |  CYCLE "
+				.. cycle
+				.. "/"
+				.. NORMAL_CYCLES
+
+			if not equipTool(tool) then
+
+				cycleRunning = false
+
+				actionButton.Text =
+					"⚔  KICK + HIT"
+
+				status.Text =
+					"STATUS: RE-EQUIP FAILED"
+
+				return
+
+			end
+
+			task.wait(EQUIP_DELAY)
+
+			if not cycleRunning then
+				return
+			end
+
+			--================================================
+			-- LEFT CLICK
+			--================================================
+
+			status.Text =
+				"STATUS: LEFT CLICK  |  CYCLE "
+				.. cycle
+				.. "/"
+				.. NORMAL_CYCLES
+
+			leftClickTool(tool)
+
+			task.wait(0.10)
+
+			if not cycleRunning then
+				return
+			end
+
+			if not isEquipped(tool) then
+
+				cycleRunning = false
+
+				actionButton.Text =
+					"⚔  KICK + HIT"
+
+				status.Text =
+					"STATUS: TOOL UNEQUIPPED"
+
+				return
+
+			end
+
+			--================================================
+			-- FINITE R SPAM
+			--================================================
+			--
+			-- This ends completely before the next
+			-- unequip/re-equip cycle begins.
+			--================================================
+
+			status.Text =
+				"STATUS: R SPAM  |  CYCLE "
+				.. cycle
+				.. "/"
+				.. NORMAL_CYCLES
+
+			local cycleCompleted =
+				firstRPhase(tool)
+
+			if not cycleCompleted then
+
+				cycleRunning = false
+
+				actionButton.Text =
+					"⚔  KICK + HIT"
+
+				status.Text =
+					"STATUS: STOPPED"
+
+				return
+
+			end
+
+		end
+
+		--====================================================
+		-- FINAL UNEQUIP
+		--====================================================
+
+		if not cycleRunning then
+			return
+		end
+
 		status.Text =
-			"STATUS: UNEQUIPPING"
+			"STATUS: FINAL UNEQUIP"
 
 		if not unequipTool(tool) then
 
@@ -755,15 +901,11 @@ local function runSequence()
 				"⚔  KICK + HIT"
 
 			status.Text =
-				"STATUS: UNEQUIP FAILED"
+				"STATUS: FINAL UNEQUIP FAILED"
 
 			return
 
 		end
-
-		--====================================================
-		-- R IS NOT RUNNING HERE
-		--====================================================
 
 		task.wait(UNEQUIP_DELAY)
 
@@ -772,11 +914,11 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 5. RE-EQUIP
+		-- FINAL RE-EQUIP
 		--====================================================
 
 		status.Text =
-			"STATUS: RE-EQUIPPING"
+			"STATUS: FINAL RE-EQUIP"
 
 		if not equipTool(tool) then
 
@@ -786,7 +928,7 @@ local function runSequence()
 				"⚔  KICK + HIT"
 
 			status.Text =
-				"STATUS: RE-EQUIP FAILED"
+				"STATUS: FINAL RE-EQUIP FAILED"
 
 			return
 
@@ -799,15 +941,14 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 6. SECOND LEFT CLICK
+		-- FINAL LEFT CLICK
 		--====================================================
 
 		status.Text =
-			"STATUS: SECOND LEFT CLICK"
+			"STATUS: FINAL LEFT CLICK"
 
 		leftClickTool(tool)
 
-		-- Give the tool a moment to process the click.
 		task.wait(0.10)
 
 		if not cycleRunning then
@@ -829,7 +970,7 @@ local function runSequence()
 		end
 
 		--====================================================
-		-- 7. R + LEFT CLICK SPAM
+		-- FINAL R + LEFT CLICK SPAM
 		--====================================================
 
 		status.Text =
