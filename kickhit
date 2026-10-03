@@ -1,16 +1,18 @@
---// Minimal Tool Click + R Spam GUI
---// Roblox Studio - LocalScript
---// Put in StarterPlayer > StarterPlayerScripts
+--// EMO TOOL CONTROLLER
+--// Roblox Studio LocalScript
+--// StarterPlayer > StarterPlayerScripts
 --
 --// 0 = Start / Stop
---// Equip selected tool -> left click once
---// Then left-click spam starts
---// After the slider delay, R spam layers on top
---// Unequipping the tool stops everything
+--// Select tool -> press 0
+--// Equip -> left click once
+--// Left-click spam begins
+--// After adjustable delay -> R spam layers on
+--// Unequipping selected tool stops everything
+--
+--// R DELAY PRECISION: 0.001 seconds
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
@@ -20,20 +22,23 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- SETTINGS
 --==================================================
 
-local GUI_NAME = "MinimalToolController"
+local GUI_NAME = "EmoToolController"
 
 local CLICK_INTERVAL = 0.08
 local R_INTERVAL = 0.08
 
-local MIN_R_DELAY = 0
-local MAX_R_DELAY = 5
-local DEFAULT_R_DELAY = 1
+local MIN_R_DELAY = 0.000
+local MAX_R_DELAY = 5.000
+local DEFAULT_R_DELAY = 1.000
+
+local EQUIP_DELAY = 0.15
 
 --==================================================
--- CLEAN OLD GUI
+-- CLEAN OLD VERSION
 --==================================================
 
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
+
 if oldGui then
 	oldGui:Destroy()
 end
@@ -50,6 +55,24 @@ local rDelay = DEFAULT_R_DELAY
 
 local clickThread = nil
 local rThread = nil
+local delayedRThread = nil
+
+--==================================================
+-- COLORS
+--==================================================
+
+local BLACK = Color3.fromRGB(8, 8, 10)
+local DARK = Color3.fromRGB(14, 14, 17)
+local PANEL = Color3.fromRGB(19, 19, 23)
+local PANEL2 = Color3.fromRGB(25, 25, 30)
+
+local RED = Color3.fromRGB(150, 25, 45)
+local RED_BRIGHT = Color3.fromRGB(205, 35, 60)
+local RED_DARK = Color3.fromRGB(80, 15, 28)
+
+local WHITE = Color3.fromRGB(235, 235, 240)
+local GREY = Color3.fromRGB(145, 145, 155)
+local DARK_GREY = Color3.fromRGB(55, 55, 63)
 
 --==================================================
 -- HELPERS
@@ -61,6 +84,7 @@ end
 
 local function getHumanoid()
 	local character = getCharacter()
+
 	if not character then
 		return nil
 	end
@@ -76,39 +100,58 @@ local function isEquipped(tool)
 		and tool.Parent == character
 end
 
+local function cancelThread(thread)
+	if thread then
+		pcall(function()
+			task.cancel(thread)
+		end)
+	end
+end
+
 local function stopAutomation()
 	running = false
 
-	if clickThread then
-		task.cancel(clickThread)
-		clickThread = nil
-	end
+	cancelThread(clickThread)
+	cancelThread(rThread)
+	cancelThread(delayedRThread)
 
-	if rThread then
-		task.cancel(rThread)
-		rThread = nil
-	end
+	clickThread = nil
+	rThread = nil
+	delayedRThread = nil
 end
 
 local function leftClick(tool)
 	if not running then
-		return
+		return false
 	end
 
 	if not isEquipped(tool) then
 		stopAutomation()
-		return
+		return false
 	end
 
 	pcall(function()
 		tool:Activate()
 	end)
+
+	return true
 end
 
 local function pressR()
 	pcall(function()
-		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+		VirtualInputManager:SendKeyEvent(
+			true,
+			Enum.KeyCode.R,
+			false,
+			game
+		)
+
+		VirtualInputManager:SendKeyEvent(
+			false,
+			Enum.KeyCode.R,
+			false,
+			game
+		)
 	end)
 end
 
@@ -122,114 +165,200 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
+--==================================================
+-- MAIN WINDOW
+--==================================================
+
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 270, 0, 205)
-main.Position = UDim2.new(0, 30, 0.5, -100)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.Name = "Main"
+main.Size = UDim2.new(0, 300, 0, 245)
+main.Position = UDim2.new(0, 35, 0.5, -120)
+
+main.BackgroundColor3 = BLACK
 main.BorderSizePixel = 0
 main.Parent = gui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = main
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = main
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = RED_DARK
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.15
+mainStroke.Parent = main
 
 --==================================================
 -- TOP BAR
 --==================================================
 
 local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, 0, 0, 32)
-topBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+topBar.Name = "TopBar"
+topBar.Size = UDim2.new(1, 0, 0, 42)
+topBar.BackgroundColor3 = DARK
 topBar.BorderSizePixel = 0
 topBar.Parent = main
 
 local topCorner = Instance.new("UICorner")
-topCorner.CornerRadius = UDim.new(0, 8)
+topCorner.CornerRadius = UDim.new(0, 12)
 topCorner.Parent = topBar
 
+-- Red accent line
+
+local accent = Instance.new("Frame")
+accent.Size = UDim2.new(1, -24, 0, 2)
+accent.Position = UDim2.new(0, 12, 1, -3)
+accent.BackgroundColor3 = RED
+accent.BorderSizePixel = 0
+accent.Parent = topBar
+
+local accentCorner = Instance.new("UICorner")
+accentCorner.CornerRadius = UDim.new(1, 0)
+accentCorner.Parent = accent
+
+-- Title
+
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -70, 1, 0)
-title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(1, -90, 0, 22)
+title.Position = UDim2.new(0, 14, 0, 6)
 title.BackgroundTransparency = 1
-title.Text = "Tool Controller"
-title.TextColor3 = Color3.fromRGB(235, 235, 235)
-title.TextSize = 14
+title.Text = "†  TOOL CONTROLLER"
+title.TextColor3 = WHITE
+title.TextSize = 13
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, -90, 0, 13)
+subtitle.Position = UDim2.new(0, 15, 0, 25)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "dark mode / 0 to toggle"
+subtitle.TextColor3 = GREY
+subtitle.TextSize = 8
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Parent = topBar
+
+-- Minimize
+
 local minimize = Instance.new("TextButton")
-minimize.Size = UDim2.new(0, 30, 0, 25)
-minimize.Position = UDim2.new(1, -35, 0, 3)
-minimize.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+minimize.Size = UDim2.new(0, 30, 0, 27)
+minimize.Position = UDim2.new(1, -68, 0, 8)
+
+minimize.BackgroundColor3 = PANEL2
 minimize.Text = "—"
-minimize.TextColor3 = Color3.fromRGB(230, 230, 230)
+minimize.TextColor3 = GREY
 minimize.TextSize = 16
 minimize.Font = Enum.Font.GothamBold
 minimize.BorderSizePixel = 0
 minimize.Parent = topBar
 
 local minCorner = Instance.new("UICorner")
-minCorner.CornerRadius = UDim.new(0, 5)
+minCorner.CornerRadius = UDim.new(0, 6)
 minCorner.Parent = minimize
+
+-- Close / reload-style button
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 27)
+closeButton.Position = UDim2.new(1, -34, 0, 8)
+
+closeButton.BackgroundColor3 = PANEL2
+closeButton.Text = "×"
+closeButton.TextColor3 = RED_BRIGHT
+closeButton.TextSize = 18
+closeButton.Font = Enum.Font.GothamBold
+closeButton.BorderSizePixel = 0
+closeButton.Parent = topBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
 
 --==================================================
 -- CONTENT
 --==================================================
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, 0, 1, -32)
-content.Position = UDim2.new(0, 0, 0, 32)
+content.Size = UDim2.new(1, 0, 1, -42)
+content.Position = UDim2.new(0, 0, 0, 42)
 content.BackgroundTransparency = 1
 content.Parent = main
 
 --==================================================
--- TOOL SELECTOR
+-- TOOL LABEL
 --==================================================
 
 local toolLabel = Instance.new("TextLabel")
-toolLabel.Size = UDim2.new(1, -20, 0, 22)
-toolLabel.Position = UDim2.new(0, 10, 0, 8)
+toolLabel.Size = UDim2.new(1, -28, 0, 18)
+toolLabel.Position = UDim2.new(0, 14, 0, 10)
 toolLabel.BackgroundTransparency = 1
-toolLabel.Text = "Tool"
-toolLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-toolLabel.TextSize = 12
-toolLabel.Font = Enum.Font.Gotham
+toolLabel.Text = "WEAPON"
+toolLabel.TextColor3 = GREY
+toolLabel.TextSize = 9
+toolLabel.Font = Enum.Font.GothamBold
 toolLabel.TextXAlignment = Enum.TextXAlignment.Left
 toolLabel.Parent = content
 
+--==================================================
+-- TOOL BUTTON
+--==================================================
+
 local toolButton = Instance.new("TextButton")
-toolButton.Size = UDim2.new(1, -20, 0, 32)
-toolButton.Position = UDim2.new(0, 10, 0, 30)
-toolButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-toolButton.Text = "Select Tool"
-toolButton.TextColor3 = Color3.fromRGB(235, 235, 235)
-toolButton.TextSize = 13
-toolButton.Font = Enum.Font.Gotham
+toolButton.Size = UDim2.new(1, -28, 0, 34)
+toolButton.Position = UDim2.new(0, 14, 0, 29)
+
+toolButton.BackgroundColor3 = PANEL
+toolButton.Text = "SELECT TOOL  ›"
+toolButton.TextColor3 = WHITE
+toolButton.TextSize = 11
+toolButton.Font = Enum.Font.GothamMedium
+toolButton.TextXAlignment = Enum.TextXAlignment.Left
 toolButton.BorderSizePixel = 0
 toolButton.Parent = content
 
+local toolPadding = Instance.new("UIPadding")
+toolPadding.PaddingLeft = UDim.new(0, 12)
+toolPadding.Parent = toolButton
+
 local toolCorner = Instance.new("UICorner")
-toolCorner.CornerRadius = UDim.new(0, 5)
+toolCorner.CornerRadius = UDim.new(0, 7)
 toolCorner.Parent = toolButton
+
+local toolStroke = Instance.new("UIStroke")
+toolStroke.Color = DARK_GREY
+toolStroke.Thickness = 1
+toolStroke.Transparency = 0.3
+toolStroke.Parent = toolButton
 
 --==================================================
 -- TOOL LIST
 --==================================================
 
 local toolList = Instance.new("ScrollingFrame")
-toolList.Size = UDim2.new(1, -20, 0, 80)
-toolList.Position = UDim2.new(0, 10, 0, 65)
-toolList.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toolList.Size = UDim2.new(1, -28, 0, 80)
+toolList.Position = UDim2.new(0, 14, 0, 67)
+
+toolList.BackgroundColor3 = Color3.fromRGB(11, 11, 14)
 toolList.BorderSizePixel = 0
-toolList.ScrollBarThickness = 4
+toolList.ScrollBarThickness = 3
+toolList.ScrollBarImageColor3 = RED
 toolList.Visible = false
 toolList.CanvasSize = UDim2.new(0, 0, 0, 0)
 toolList.Parent = content
 
+local listCorner = Instance.new("UICorner")
+listCorner.CornerRadius = UDim.new(0, 7)
+listCorner.Parent = toolList
+
 local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 3)
 listLayout.Parent = toolList
+
+--==================================================
+-- REFRESH TOOLS
+--==================================================
 
 local function refreshToolList()
 	for _, child in ipairs(toolList:GetChildren()) do
@@ -241,6 +370,7 @@ local function refreshToolList()
 	local tools = {}
 
 	local backpack = player:FindFirstChildOfClass("Backpack")
+
 	if backpack then
 		for _, obj in ipairs(backpack:GetChildren()) do
 			if obj:IsA("Tool") then
@@ -250,6 +380,7 @@ local function refreshToolList()
 	end
 
 	local character = getCharacter()
+
 	if character then
 		for _, obj in ipairs(character:GetChildren()) do
 			if obj:IsA("Tool") and not table.find(tools, obj) then
@@ -260,53 +391,97 @@ local function refreshToolList()
 
 	for _, tool in ipairs(tools) do
 		local button = Instance.new("TextButton")
-		button.Size = UDim2.new(1, -6, 0, 25)
-		button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+
+		button.Size = UDim2.new(1, -8, 0, 27)
+		button.BackgroundColor3 = PANEL2
 		button.Text = tool.Name
-		button.TextColor3 = Color3.fromRGB(230, 230, 230)
-		button.TextSize = 11
+		button.TextColor3 = WHITE
+		button.TextSize = 10
 		button.Font = Enum.Font.Gotham
+		button.TextXAlignment = Enum.TextXAlignment.Left
 		button.BorderSizePixel = 0
 		button.Parent = toolList
 
-		local buttonCorner = Instance.new("UICorner")
-		buttonCorner.CornerRadius = UDim.new(0, 4)
-		buttonCorner.Parent = button
+		local padding = Instance.new("UIPadding")
+		padding.PaddingLeft = UDim.new(0, 10)
+		padding.Parent = button
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 5)
+		corner.Parent = button
+
+		button.MouseEnter:Connect(function()
+			button.BackgroundColor3 = RED_DARK
+		end)
+
+		button.MouseLeave:Connect(function()
+			button.BackgroundColor3 = PANEL2
+		end)
 
 		button.MouseButton1Click:Connect(function()
 			selectedTool = tool
-			toolButton.Text = "Selected: " .. tool.Name
+
+			toolButton.Text = "†  " .. tool.Name
+
 			toolList.Visible = false
 		end)
 	end
 
-	toolList.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 5)
+	toolList.CanvasSize = UDim2.new(
+		0,
+		0,
+		0,
+		listLayout.AbsoluteContentSize.Y + 5
+	)
 end
 
 toolButton.MouseButton1Click:Connect(function()
 	refreshToolList()
+
 	toolList.Visible = not toolList.Visible
 end)
 
 --==================================================
--- R DELAY SLIDER
+-- DELAY LABEL
 --==================================================
 
-local sliderLabel = Instance.new("TextLabel")
-sliderLabel.Size = UDim2.new(1, -20, 0, 20)
-sliderLabel.Position = UDim2.new(0, 10, 0, 102)
-sliderLabel.BackgroundTransparency = 1
-sliderLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-sliderLabel.TextSize = 11
-sliderLabel.Font = Enum.Font.Gotham
-sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
-sliderLabel.Text = "R delay: " .. string.format("%.2f", rDelay) .. "s"
-sliderLabel.Parent = content
+local delayTitle = Instance.new("TextLabel")
+delayTitle.Size = UDim2.new(1, -28, 0, 18)
+delayTitle.Position = UDim2.new(0, 14, 0, 109)
+
+delayTitle.BackgroundTransparency = 1
+delayTitle.Text = "R OVERLAY DELAY"
+delayTitle.TextColor3 = GREY
+delayTitle.TextSize = 9
+delayTitle.Font = Enum.Font.GothamBold
+delayTitle.TextXAlignment = Enum.TextXAlignment.Left
+delayTitle.Parent = content
+
+--==================================================
+-- DELAY VALUE
+--==================================================
+
+local delayValue = Instance.new("TextLabel")
+delayValue.Size = UDim2.new(0, 90, 0, 20)
+delayValue.Position = UDim2.new(1, -104, 0, 106)
+
+delayValue.BackgroundTransparency = 1
+delayValue.Text = string.format("%.3fs", rDelay)
+delayValue.TextColor3 = RED_BRIGHT
+delayValue.TextSize = 11
+delayValue.Font = Enum.Font.GothamBold
+delayValue.TextXAlignment = Enum.TextXAlignment.Right
+delayValue.Parent = content
+
+--==================================================
+-- SLIDER
+--==================================================
 
 local sliderBack = Instance.new("Frame")
-sliderBack.Size = UDim2.new(1, -35, 0, 6)
-sliderBack.Position = UDim2.new(0, 15, 0, 128)
-sliderBack.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+sliderBack.Size = UDim2.new(1, -40, 0, 6)
+sliderBack.Position = UDim2.new(0, 20, 0, 137)
+
+sliderBack.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
 sliderBack.BorderSizePixel = 0
 sliderBack.Parent = content
 
@@ -314,14 +489,13 @@ local sliderCorner = Instance.new("UICorner")
 sliderCorner.CornerRadius = UDim.new(1, 0)
 sliderCorner.Parent = sliderBack
 
+local initialPercent =
+	(rDelay - MIN_R_DELAY) /
+	(MAX_R_DELAY - MIN_R_DELAY)
+
 local sliderFill = Instance.new("Frame")
-sliderFill.Size = UDim2.new(
-	(rDelay - MIN_R_DELAY) / (MAX_R_DELAY - MIN_R_DELAY),
-	0,
-	1,
-	0
-)
-sliderFill.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
+sliderFill.Size = UDim2.new(initialPercent, 0, 1, 0)
+sliderFill.BackgroundColor3 = RED
 sliderFill.BorderSizePixel = 0
 sliderFill.Parent = sliderBack
 
@@ -330,15 +504,11 @@ fillCorner.CornerRadius = UDim.new(1, 0)
 fillCorner.Parent = sliderFill
 
 local knob = Instance.new("Frame")
-knob.Size = UDim2.new(0, 12, 0, 12)
+knob.Size = UDim2.new(0, 14, 0, 14)
 knob.AnchorPoint = Vector2.new(0.5, 0.5)
-knob.Position = UDim2.new(
-	(rDelay - MIN_R_DELAY) / (MAX_R_DELAY - MIN_R_DELAY),
-	0,
-	0.5,
-	0
-)
-knob.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
+knob.Position = UDim2.new(initialPercent, 0, 0.5, 0)
+
+knob.BackgroundColor3 = RED_BRIGHT
 knob.BorderSizePixel = 0
 knob.Parent = sliderBack
 
@@ -346,21 +516,49 @@ local knobCorner = Instance.new("UICorner")
 knobCorner.CornerRadius = UDim.new(1, 0)
 knobCorner.Parent = knob
 
+local knobStroke = Instance.new("UIStroke")
+knobStroke.Color = Color3.fromRGB(255, 100, 120)
+knobStroke.Thickness = 1
+knobStroke.Parent = knob
+
 local draggingSlider = false
 
 local function updateSlider(mouseX)
-	local relative = math.clamp(
-		(mouseX - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X,
+	local relative =
+		(mouseX - sliderBack.AbsolutePosition.X) /
+		sliderBack.AbsoluteSize.X
+
+	relative = math.clamp(relative, 0, 1)
+
+	-- 0.001 SECOND PRECISION
+	local rawValue =
+		MIN_R_DELAY +
+		(MAX_R_DELAY - MIN_R_DELAY) * relative
+
+	rDelay = math.floor(rawValue * 1000 + 0.5) / 1000
+
+	local visualPercent =
+		(rDelay - MIN_R_DELAY) /
+		(MAX_R_DELAY - MIN_R_DELAY)
+
+	sliderFill.Size = UDim2.new(
+		visualPercent,
 		0,
-		1
+		1,
+		0
 	)
 
-	rDelay = MIN_R_DELAY + (MAX_R_DELAY - MIN_R_DELAY) * relative
+	knob.Position = UDim2.new(
+		visualPercent,
+		0,
+		0.5,
+		0
+	)
 
-	sliderFill.Size = UDim2.new(relative, 0, 1, 0)
-	knob.Position = UDim2.new(relative, 0, 0.5, 0)
-
-	sliderLabel.Text = "R delay: " .. string.format("%.2f", rDelay) .. "s"
+	delayValue.Text = string.format(
+		"%.3fs",
+		rDelay
+	)
 end
 
 sliderBack.InputBegan:Connect(function(input)
@@ -371,7 +569,9 @@ sliderBack.InputBegan:Connect(function(input)
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+	if draggingSlider
+		and input.UserInputType == Enum.UserInputType.MouseMovement then
+
 		updateSlider(input.Position.X)
 	end
 end)
@@ -383,22 +583,64 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 --==================================================
+-- DELAY RANGE LABELS
+--==================================================
+
+local minLabel = Instance.new("TextLabel")
+minLabel.Size = UDim2.new(0, 60, 0, 15)
+minLabel.Position = UDim2.new(0, 20, 0, 148)
+
+minLabel.BackgroundTransparency = 1
+minLabel.Text = "0.000s"
+minLabel.TextColor3 = GREY
+minLabel.TextSize = 8
+minLabel.Font = Enum.Font.Gotham
+minLabel.TextXAlignment = Enum.TextXAlignment.Left
+minLabel.Parent = content
+
+local maxLabel = Instance.new("TextLabel")
+maxLabel.Size = UDim2.new(0, 60, 0, 15)
+maxLabel.Position = UDim2.new(1, -80, 0, 148)
+
+maxLabel.BackgroundTransparency = 1
+maxLabel.Text = "5.000s"
+maxLabel.TextColor3 = GREY
+maxLabel.TextSize = 8
+maxLabel.Font = Enum.Font.Gotham
+maxLabel.TextXAlignment = Enum.TextXAlignment.Right
+maxLabel.Parent = content
+
+--==================================================
 -- STATUS
 --==================================================
 
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -20, 0, 25)
-status.Position = UDim2.new(0, 10, 0, 150)
-status.BackgroundTransparency = 1
-status.Text = "Ready • Press 0"
-status.TextColor3 = Color3.fromRGB(150, 150, 150)
-status.TextSize = 11
-status.Font = Enum.Font.Gotham
-status.TextXAlignment = Enum.TextXAlignment.Center
+status.Size = UDim2.new(1, -28, 0, 25)
+status.Position = UDim2.new(0, 14, 0, 177)
+
+status.BackgroundColor3 = PANEL
+status.Text = "●  READY  •  PRESS 0"
+status.TextColor3 = GREY
+status.TextSize = 9
+status.Font = Enum.Font.GothamBold
+status.BorderSizePixel = 0
 status.Parent = content
 
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 6)
+statusCorner.Parent = status
+
 --==================================================
--- START SEQUENCE
+-- STATUS FUNCTION
+--==================================================
+
+local function setStatus(text, color)
+	status.Text = "●  " .. text
+	status.TextColor3 = color or GREY
+end
+
+--==================================================
+-- START AUTOMATION
 --==================================================
 
 local function startAutomation()
@@ -407,34 +649,43 @@ local function startAutomation()
 	end
 
 	if not selectedTool then
-		status.Text = "Select a tool first"
+		setStatus("SELECT A TOOL FIRST", RED_BRIGHT)
 		return
 	end
 
 	local humanoid = getHumanoid()
+
 	if not humanoid then
-		status.Text = "Humanoid not found"
+		setStatus("HUMANOID NOT FOUND", RED_BRIGHT)
 		return
 	end
 
-	running = true
-
 	local tool = selectedTool
 
-	-- Equip
+	running = true
+
+	setStatus("EQUIPPING...", RED_BRIGHT)
+
+	--==================================================
+	-- EQUIP
+	--==================================================
+
 	pcall(function()
 		humanoid:EquipTool(tool)
 	end)
 
-	task.wait(0.15)
+	task.wait(EQUIP_DELAY)
 
 	if not running or not isEquipped(tool) then
 		stopAutomation()
-		status.Text = "Stopped"
+		setStatus("STOPPED", GREY)
 		return
 	end
 
-	-- LEFT CLICK ONCE
+	--==================================================
+	-- INITIAL LEFT CLICK
+	--==================================================
+
 	leftClick(tool)
 
 	--==================================================
@@ -443,46 +694,65 @@ local function startAutomation()
 
 	clickThread = task.spawn(function()
 		while running do
+
 			if not isEquipped(tool) then
 				stopAutomation()
+				setStatus("UNEQUIPPED • STOPPED", GREY)
 				break
 			end
 
 			leftClick(tool)
+
 			task.wait(CLICK_INTERVAL)
 		end
 	end)
 
-	status.Text = "Left-clicking..."
+	setStatus("LEFT CLICKING...", RED_BRIGHT)
 
 	--==================================================
-	-- WAIT BEFORE ADDING R SPAM
+	-- WAIT FOR R DELAY
 	--==================================================
 
-	task.spawn(function()
+	delayedRThread = task.spawn(function()
+
 		task.wait(rDelay)
 
-		if not running or not isEquipped(tool) then
+		if not running then
 			return
 		end
 
-		status.Text = "Left-click + R..."
+		if not isEquipped(tool) then
+			stopAutomation()
+			setStatus("UNEQUIPPED • STOPPED", GREY)
+			return
+		end
+
+		setStatus(
+			"CLICK + R  •  " .. string.format("%.3fs", rDelay),
+			RED_BRIGHT
+		)
 
 		--==================================================
-		-- R SPAM ON TOP OF LEFT CLICK SPAM
+		-- R SPAM
 		--==================================================
 
 		rThread = task.spawn(function()
+
 			while running do
+
 				if not isEquipped(tool) then
 					stopAutomation()
+					setStatus("UNEQUIPPED • STOPPED", GREY)
 					break
 				end
 
 				pressR()
+
 				task.wait(R_INTERVAL)
 			end
+
 		end)
+
 	end)
 end
 
@@ -491,15 +761,30 @@ end
 --==================================================
 
 local function toggleAutomation()
+
 	if running then
+
 		stopAutomation()
-		status.Text = "Stopped • Press 0"
+
+		setStatus(
+			"STOPPED  •  PRESS 0",
+			GREY
+		)
+
 	else
+
 		startAutomation()
+
 	end
+
 end
 
+--==================================================
+-- 0 KEY
+--==================================================
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
+
 	if gameProcessed then
 		return
 	end
@@ -507,21 +792,32 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.Zero then
 		toggleAutomation()
 	end
+
 end)
 
 --==================================================
--- AUTOMATIC STOP WHEN UNEQUIPPED
+-- STOP WHEN TOOL IS UNEQUIPPED
 --==================================================
 
 local function monitorCharacter(character)
+
 	character.ChildRemoved:Connect(function(child)
-		if child:IsA("Tool") and running then
-			if child == selectedTool then
-				stopAutomation()
-				status.Text = "Unequipped • Stopped"
-			end
+
+		if child:IsA("Tool")
+			and child == selectedTool
+			and running then
+
+			stopAutomation()
+
+			setStatus(
+				"UNEQUIPPED  •  STOPPED",
+				GREY
+			)
+
 		end
+
 	end)
+
 end
 
 if player.Character then
@@ -529,27 +825,70 @@ if player.Character then
 end
 
 player.CharacterAdded:Connect(function(character)
+
 	stopAutomation()
-	status.Text = "Character reset"
+
+	selectedTool = nil
+
+	toolButton.Text = "SELECT TOOL  ›"
+
+	setStatus(
+		"CHARACTER RESET",
+		GREY
+	)
+
 	monitorCharacter(character)
+
 end)
 
 --==================================================
--- MINIMIZE / MAXIMIZE
+-- MINIMIZE
 --==================================================
 
 minimize.MouseButton1Click:Connect(function()
+
 	minimized = not minimized
 
 	if minimized then
+
 		content.Visible = false
-		main.Size = UDim2.new(0, 270, 0, 32)
+
+		main.Size = UDim2.new(
+			0,
+			300,
+			0,
+			42
+		)
+
 		minimize.Text = "+"
+
 	else
+
 		content.Visible = true
-		main.Size = UDim2.new(0, 270, 0, 205)
+
+		main.Size = UDim2.new(
+			0,
+			300,
+			0,
+			245
+		)
+
 		minimize.Text = "—"
+
 	end
+
+end)
+
+--==================================================
+-- CLOSE / RELOAD
+--==================================================
+
+closeButton.MouseButton1Click:Connect(function()
+
+	stopAutomation()
+
+	gui:Destroy()
+
 end)
 
 --==================================================
@@ -561,42 +900,66 @@ local dragStart
 local startPosition
 
 topBar.InputBegan:Connect(function(input)
+
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
 		dragging = true
+
 		dragStart = input.Position
 		startPosition = main.Position
+
 	end
+
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
+
+	if dragging
+		and input.UserInputType == Enum.UserInputType.MouseMovement then
+
+		local delta =
+			input.Position - dragStart
 
 		main.Position = UDim2.new(
 			startPosition.X.Scale,
 			startPosition.X.Offset + delta.X,
+
 			startPosition.Y.Scale,
 			startPosition.Y.Offset + delta.Y
 		)
+
 	end
+
 end)
 
 UserInputService.InputEnded:Connect(function(input)
+
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		dragging = false
 	end
+
 end)
 
 --==================================================
--- AUTO REFRESH TOOL SELECTION
+-- AUTO TOOL REFRESH
 --==================================================
 
 task.spawn(function()
+
 	while gui.Parent do
+
 		task.wait(1)
 
 		if not running then
 			refreshToolList()
 		end
+
 	end
+
 end)
+
+--==================================================
+-- INITIAL REFRESH
+--==================================================
+
+refreshToolList()
