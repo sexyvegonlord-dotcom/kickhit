@@ -1,7 +1,7 @@
 -- EMO TOOL CONTROLLER
 -- 0 = Toggle automation
 -- P = Force GUI visible
--- Delay = 0.00000 - 5.00000 seconds
+-- Delay = 0.000000 - 5.000000 seconds
 -- Automatically detects new/equipped/unequipped tools
 
 local Players = game:GetService("Players")
@@ -13,20 +13,13 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local GUI_NAME = "EmoToolController"
 
---==================================================
 -- REMOVE OLD VERSION
---==================================================
-
 local oldGui = playerGui:FindFirstChild(GUI_NAME)
-
 if oldGui then
     oldGui:Destroy()
 end
 
---==================================================
 -- SETTINGS
---==================================================
-
 local CLICK_INTERVAL = 0.08
 local R_INTERVAL = 0.08
 
@@ -35,10 +28,7 @@ local automationRunning = false
 local selectedTool = nil
 local selectedButton = nil
 
---==================================================
 -- GUI
---==================================================
-
 local gui = Instance.new("ScreenGui")
 gui.Name = GUI_NAME
 gui.ResetOnSpawn = false
@@ -64,10 +54,7 @@ stroke.Color = Color3.fromRGB(100, 20, 20)
 stroke.Thickness = 1
 stroke.Parent = main
 
---==================================================
 -- TITLE
---==================================================
-
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -70, 0, 35)
 title.Position = UDim2.new(0, 12, 0, 5)
@@ -90,10 +77,7 @@ subtitle.Font = Enum.Font.Gotham
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.Parent = main
 
---==================================================
--- MINIMIZE
---==================================================
-
+-- MINIMIZE BUTTON
 local minimize = Instance.new("TextButton")
 minimize.Size = UDim2.new(0, 25, 0, 25)
 minimize.Position = UDim2.new(1, -60, 0, 8)
@@ -104,10 +88,7 @@ minimize.TextSize = 18
 minimize.Font = Enum.Font.GothamBold
 minimize.Parent = main
 
---==================================================
--- CLOSE
---==================================================
-
+-- CLOSE BUTTON
 local close = Instance.new("TextButton")
 close.Size = UDim2.new(0, 25, 0, 25)
 close.Position = UDim2.new(1, -30, 0, 8)
@@ -120,7 +101,6 @@ close.Parent = main
 
 close.MouseButton1Click:Connect(function()
     main.Visible = false
-
     task.defer(function()
         if gui and gui.Parent then
             gui.Enabled = true
@@ -129,10 +109,7 @@ close.MouseButton1Click:Connect(function()
     end)
 end)
 
---==================================================
 -- TOOL LIST
---==================================================
-
 local toolLabel = Instance.new("TextLabel")
 toolLabel.Size = UDim2.new(1, -20, 0, 20)
 toolLabel.Position = UDim2.new(0, 10, 0, 60)
@@ -161,10 +138,7 @@ local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 3)
 layout.Parent = toolList
 
---==================================================
--- DELAY
---==================================================
-
+-- DELAY INPUT: SIX DECIMAL PLACES
 local delayLabel = Instance.new("TextLabel")
 delayLabel.Size = UDim2.new(0, 100, 0, 25)
 delayLabel.Position = UDim2.new(0, 10, 0, 165)
@@ -181,8 +155,8 @@ delayBox.Size = UDim2.new(0, 120, 0, 28)
 delayBox.Position = UDim2.new(0, 90, 0, 163)
 delayBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 delayBox.BorderSizePixel = 0
-delayBox.Text = "0.00000"
-delayBox.PlaceholderText = "0.00000 - 5.00000"
+delayBox.Text = "0.000000"
+delayBox.PlaceholderText = "0.000000 - 5.000000"
 delayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 delayBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
 delayBox.TextSize = 12
@@ -200,17 +174,14 @@ delayBox.FocusLost:Connect(function()
     if value then
         value = math.clamp(value, 0, 5)
         delayTime = value
-        delayBox.Text = string.format("%.5f", value)
+        delayBox.Text = string.format("%.6f", value)
     else
         delayTime = 0
-        delayBox.Text = "0.00000"
+        delayBox.Text = "0.000000"
     end
 end)
 
---==================================================
 -- STATUS
---==================================================
-
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -20, 0, 30)
 status.Position = UDim2.new(0, 10, 0, 205)
@@ -222,10 +193,7 @@ status.Font = Enum.Font.GothamBold
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.Parent = main
 
---==================================================
 -- DRAGGING
---==================================================
-
 local dragging = false
 local dragStart
 local startPos
@@ -247,7 +215,6 @@ end)
 UserInputService.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
-
         main.Position = UDim2.new(
             startPos.X.Scale,
             startPos.X.Offset + delta.X,
@@ -257,10 +224,7 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
---==================================================
 -- MINIMIZE
---==================================================
-
 local minimized = false
 
 minimize.MouseButton1Click:Connect(function()
@@ -272,7 +236,6 @@ minimize.MouseButton1Click:Connect(function()
             and child ~= minimize
             and child ~= close
             and child:IsA("GuiObject") then
-
             child.Visible = not minimized
         end
     end
@@ -284,15 +247,10 @@ minimize.MouseButton1Click:Connect(function()
     end
 end)
 
---==================================================
 -- TOOL REFRESH
---==================================================
-
 local function refreshTools()
-    -- Remember currently selected tool
     local previousSelection = selectedTool
 
-    -- Remove old buttons
     for _, child in ipairs(toolList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
@@ -302,7 +260,6 @@ local function refreshTools()
     local tools = {}
     local seen = {}
 
-    -- Get Backpack tools
     for _, tool in ipairs(player.Backpack:GetChildren()) do
         if tool:IsA("Tool") and not seen[tool] then
             seen[tool] = true
@@ -310,7 +267,6 @@ local function refreshTools()
         end
     end
 
-    -- Get equipped Character tools
     if player.Character then
         for _, tool in ipairs(player.Character:GetChildren()) do
             if tool:IsA("Tool") and not seen[tool] then
@@ -320,10 +276,8 @@ local function refreshTools()
         end
     end
 
-    -- Create buttons
     for _, tool in ipairs(tools) do
         local button = Instance.new("TextButton")
-
         button.Size = UDim2.new(1, -6, 0, 25)
         button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         button.BorderSizePixel = 0
@@ -337,7 +291,6 @@ local function refreshTools()
         buttonCorner.CornerRadius = UDim.new(0, 4)
         buttonCorner.Parent = button
 
-        -- Keep selected tool highlighted after refresh
         if tool == previousSelection then
             button.BackgroundColor3 = Color3.fromRGB(100, 25, 25)
             selectedButton = button
@@ -366,10 +319,7 @@ local function refreshTools()
     )
 end
 
---==================================================
 -- AUTOMATIC TOOL DETECTION
---==================================================
-
 local function connectContainer(container)
     if not container then
         return
@@ -388,42 +338,29 @@ local function connectContainer(container)
     end)
 end
 
--- Backpack changes
 connectContainer(player.Backpack)
 
--- Character changes
 if player.Character then
     connectContainer(player.Character)
 end
 
--- Character replacement
 player.CharacterAdded:Connect(function(character)
     task.wait(0.2)
-
     connectContainer(character)
     refreshTools()
 end)
 
--- Initial refresh
 refreshTools()
 
---==================================================
 -- EXTRA TOOL WATCHDOG
---==================================================
--- This catches tools that may be inserted/moved in unusual ways.
-
 task.spawn(function()
     while true do
         task.wait(0.5)
-
         refreshTools()
     end
 end)
 
---==================================================
 -- AUTOMATION
---==================================================
-
 local function getCharacter()
     return player.Character or player.CharacterAdded:Wait()
 end
@@ -445,7 +382,6 @@ local function equipTool()
     end
 
     task.wait()
-
     return selectedTool.Parent == character
 end
 
@@ -519,7 +455,6 @@ local function startAutomation()
     end
 
     automationRunning = true
-
     status.Text = "STATUS: ON"
     status.TextColor3 = Color3.fromRGB(70, 220, 100)
 
@@ -529,21 +464,16 @@ end
 
 local function stopAutomation()
     automationRunning = false
-
     status.Text = "STATUS: OFF"
     status.TextColor3 = Color3.fromRGB(200, 70, 70)
 end
 
---==================================================
 -- KEYBINDS
---==================================================
-
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then
         return
     end
 
-    -- P = FORCE GUI VISIBLE
     if input.KeyCode == Enum.KeyCode.P then
         gui.Parent = playerGui
         gui.Enabled = true
@@ -564,7 +494,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
         close.Visible = true
     end
 
-    -- 0 = TOGGLE AUTOMATION
     if input.KeyCode == Enum.KeyCode.Zero then
         if automationRunning then
             stopAutomation()
@@ -574,10 +503,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
---==================================================
 -- GUI WATCHDOG
---==================================================
-
 task.spawn(function()
     while true do
         task.wait(0.25)
@@ -591,15 +517,10 @@ task.spawn(function()
     end
 end)
 
---==================================================
 -- RESPAWN SUPPORT
---==================================================
-
 player.CharacterAdded:Connect(function()
     task.wait(1)
-
     refreshTools()
-
     gui.Parent = playerGui
     gui.Enabled = true
 end)
@@ -607,5 +528,5 @@ end)
 print("† TOOL CONTROLLER loaded")
 print("P = Show GUI")
 print("0 = Toggle automation")
-print("Delay precision = 0.00000")
+print("Delay precision = 0.000000")
 print("Automatic tool detection = ON")
